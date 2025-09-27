@@ -3,7 +3,7 @@ import { drizzle as drizzlePGLite } from "drizzle-orm/pglite";
 import { neon } from "@neondatabase/serverless";
 import { PGlite } from "@electric-sql/pglite";
 import { eq, like, ilike, desc, asc, and, or, count } from "drizzle-orm";
-import * as schema from "@shared/schema";
+import * as schema from "../shared/schema";
 import {
   recipes,
   ingredients,
@@ -22,7 +22,7 @@ import {
   type UpdateEvent,
   type RecipeWithIngredients,
   type EventWithRecipes,
-} from "@shared/schema";
+} from "../shared/schema";
 
 // For development, we'll use PGLite (WASM Postgres)
 // For production, this will connect to PostgreSQL via DATABASE_URL

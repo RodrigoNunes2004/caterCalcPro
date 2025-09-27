@@ -4,10 +4,8 @@ import path from "path";
 import { createServer as createViteServer, createLogger } from "vite";
 import { type Server } from "http";
 import viteConfig from "../vite.config";
-import { fileURLToPath } from "url";
-
 // Get current directory for Node.js v18 compatibility
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const __dirname = path.dirname(__filename);
 
 const viteLogger = createLogger();
 

@@ -1,5 +1,6 @@
 import "dotenv/config";
 import express, { Request, Response, NextFunction } from "express";
+import { createServer } from "http";
 import cors from "cors";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
@@ -35,14 +36,16 @@ app.use((req, res, next) => {
 
   const PORT = process.env.PORT || 3000;
 
+  const server = createServer(app);
+
   // Serve frontend via Vite (optional)
   if (process.env.NODE_ENV === "production") {
     serveStatic(app);
   } else {
-    await setupVite(app);
+    await setupVite(app, server);
   }
 
-  app.listen(PORT, () => {
+  server.listen(PORT, () => {
     log(`🚀 CaterCalc Pro server running at http://localhost:${PORT}`);
   });
 })();
