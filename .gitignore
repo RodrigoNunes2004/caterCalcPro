@@ -1,1 +1,42 @@
+# Dependency directories
 node_modules/
+.env
+.pnpm/
+
+# Build output
+dist/
+dist-ssr/
+
+# Environment variables
+.env
+.env.local
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# Editor settings
+.vscode/
+!.vscode/extensions.json
+.idea/
+.DS_Store
+
+# OS and IDE artifacts
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Database and Drizzle artifacts
+dev.db/
+drizzle/migrations/
+
+# Optional: ignore local schema if generated
+drizzle/schema.ts
+
+
+
+
