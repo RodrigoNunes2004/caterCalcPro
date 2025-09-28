@@ -1,4 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
+import type { Database } from "./types";
 
 // Supabase project credentials
 const supabaseUrl = "https://pwesvwezjkldlkhzsqfz.supabase.co";

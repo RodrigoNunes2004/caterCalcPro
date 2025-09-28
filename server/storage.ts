@@ -100,7 +100,7 @@ export const storage = {
     };
   },
 
-  async getRecipe(id: string): Promise<RecipeWithIngredients | null> {
+  async getRecipe(id: string): Promise<any> {
     const recipe = await db
       .select()
       .from(recipes)
@@ -122,32 +122,42 @@ export const storage = {
 
     return {
       ...recipe[0],
-      ingredients: recipeIngreds.map((ri) => ({
-        ...ri.recipe_ingredients,
+      ingredients: recipeIngreds.map((ri: any) => ({
+        id: ri.recipe_ingredients.id,
+        recipeId: ri.recipe_ingredients.recipeId,
+        ingredientId: ri.recipe_ingredients.ingredientId,
+        quantity: ri.recipe_ingredients.quantity,
+        unit: ri.recipe_ingredients.unit,
+        notes: ri.recipe_ingredients.notes,
+        createdAt: ri.recipe_ingredients.createdAt,
         ingredient: ri.ingredients!,
-      })) as any,
-      subRecipes: subRecipes.map((sr) => ({
-        ...sr.recipe_sub_recipes,
+      })),
+      subRecipes: subRecipes.map((sr: any) => ({
+        id: sr.recipe_sub_recipes.id,
+        parentRecipeId: sr.recipe_sub_recipes.parentRecipeId,
+        subRecipeId: sr.recipe_sub_recipes.subRecipeId,
+        quantity: sr.recipe_sub_recipes.quantity,
+        createdAt: sr.recipe_sub_recipes.createdAt,
         subRecipe: sr.recipes!,
-      })) as any,
-    } as RecipeWithIngredients;
+      })),
+    };
   },
 
-  async createRecipe(data: InsertRecipe): Promise<Recipe> {
-    const result = await db.insert(recipes).values(data).returning();
-    return result[0] as Recipe;
+  async createRecipe(data: InsertRecipe): Promise<any> {
+    const result = await db
+      .insert(recipes)
+      .values(data as any)
+      .returning();
+    return result[0];
   },
 
-  async updateRecipe(id: string, data: UpdateRecipe): Promise<Recipe | null> {
+  async updateRecipe(id: string, data: UpdateRecipe): Promise<any> {
     const result = await db
       .update(recipes)
-      .set({
-        ...data,
-        updatedAt: new Date(),
-      })
+      .set(data)
       .where(eq(recipes.id, id))
       .returning();
-    return (result[0] as Recipe) || null;
+    return result[0] || null;
   },
 
   async deleteRecipe(id: string): Promise<boolean> {
@@ -202,7 +212,7 @@ export const storage = {
     };
   },
 
-  async getIngredient(id: string): Promise<Ingredient | null> {
+  async getIngredient(id: string): Promise<any> {
     const [ingredient] = await db
       .select()
       .from(ingredients)
@@ -211,24 +221,21 @@ export const storage = {
     return ingredient || null;
   },
 
-  async createIngredient(data: InsertIngredient): Promise<Ingredient> {
-    const result = await db.insert(ingredients).values(data).returning();
-    return result[0] as Ingredient;
+  async createIngredient(data: InsertIngredient): Promise<any> {
+    const result = await db
+      .insert(ingredients)
+      .values(data as any)
+      .returning();
+    return result[0];
   },
 
-  async updateIngredient(
-    id: string,
-    data: UpdateIngredient
-  ): Promise<Ingredient | null> {
+  async updateIngredient(id: string, data: UpdateIngredient): Promise<any> {
     const result = await db
       .update(ingredients)
-      .set({
-        ...data,
-        updatedAt: new Date(),
-      })
+      .set(data)
       .where(eq(ingredients.id, id))
       .returning();
-    return (result[0] as Ingredient) || null;
+    return result[0] || null;
   },
 
   async deleteIngredient(id: string): Promise<boolean> {
@@ -236,10 +243,7 @@ export const storage = {
     return (result as any).rowCount > 0;
   },
 
-  async searchIngredients(
-    query: string,
-    limit: number = 10
-  ): Promise<Ingredient[]> {
+  async searchIngredients(query: string, limit: number = 10): Promise<any[]> {
     return await db
       .select()
       .from(ingredients)
@@ -258,9 +262,12 @@ export const storage = {
     return result.map((r) => r.category).filter(Boolean) as string[];
   },
 
-  async bulkCreateIngredients(data: InsertIngredient[]): Promise<Ingredient[]> {
-    const result = await db.insert(ingredients).values(data).returning();
-    return result as Ingredient[];
+  async bulkCreateIngredients(data: InsertIngredient[]): Promise<any[]> {
+    const result = await db
+      .insert(ingredients)
+      .values(data as any)
+      .returning();
+    return result;
   },
 
   // Event operations
@@ -316,7 +323,7 @@ export const storage = {
     };
   },
 
-  async getEvent(id: string): Promise<EventWithRecipes | null> {
+  async getEvent(id: string): Promise<any> {
     const event = await db
       .select()
       .from(events)
@@ -332,28 +339,33 @@ export const storage = {
 
     return {
       ...event[0],
-      recipes: eventRecipesResult.map((er) => ({
-        ...er.event_recipes,
+      recipes: eventRecipesResult.map((er: any) => ({
+        id: er.event_recipes.id,
+        eventId: er.event_recipes.eventId,
+        recipeId: er.event_recipes.recipeId,
+        plannedServings: er.event_recipes.plannedServings,
+        notes: er.event_recipes.notes,
+        createdAt: er.event_recipes.createdAt,
         recipe: er.recipes!,
-      })) as any,
-    } as EventWithRecipes;
+      })),
+    };
   },
 
-  async createEvent(data: InsertEvent): Promise<Event> {
-    const result = await db.insert(events).values(data).returning();
-    return result[0] as Event;
+  async createEvent(data: InsertEvent): Promise<any> {
+    const result = await db
+      .insert(events)
+      .values(data as any)
+      .returning();
+    return result[0];
   },
 
-  async updateEvent(id: string, data: UpdateEvent): Promise<Event | null> {
+  async updateEvent(id: string, data: UpdateEvent): Promise<any> {
     const result = await db
       .update(events)
-      .set({
-        ...data,
-        updatedAt: new Date(),
-      })
+      .set(data)
       .where(eq(events.id, id))
       .returning();
-    return (result[0] as Event) || null;
+    return result[0] || null;
   },
 
   async deleteEvent(id: string): Promise<boolean> {
@@ -362,13 +374,11 @@ export const storage = {
   },
 
   // Additional methods expected by route files
-  async getRecipeWithIngredients(
-    id: string
-  ): Promise<RecipeWithIngredients | null> {
+  async getRecipeWithIngredients(id: string): Promise<any> {
     return this.getRecipe(id);
   },
 
-  async getEventWithRecipes(id: string): Promise<EventWithRecipes | null> {
+  async getEventWithRecipes(id: string): Promise<any> {
     return this.getEvent(id);
   },
 

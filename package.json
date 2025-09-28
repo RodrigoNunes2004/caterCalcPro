@@ -29,6 +29,7 @@
   },
   "dependencies": {
     "@electric-sql/pglite": "^0.3.5",
+    "autoprefixer": "^10.4.20",
     "@hookform/resolvers": "^5.2.2",
     "@neondatabase/serverless": "^0.10.4",
     "@radix-ui/react-accordion": "^1.2.12",
@@ -84,7 +85,7 @@
     "recharts": "2.15.4",
     "shadcn-ui": "latest",
     "sonner": "^2.0.7",
-    "tailwind-merge": "^3.0.1",
+    "tailwind-merge": "^3.3.1",
     "tailwindcss": "^3.3.4",
     "tailwindcss-animate": "^1.0.7",
     "vaul": "^1.1.2",
