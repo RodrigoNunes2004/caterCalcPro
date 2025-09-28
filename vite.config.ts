@@ -19,5 +19,10 @@ export default defineConfig(({ mode, command }) => {
     build: {
       outDir: "dist/public",
     },
+    server: {
+      port: 3000,
+      host: true,
+      historyApiFallback: true,
+    },
   };
 });

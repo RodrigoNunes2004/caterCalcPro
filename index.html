@@ -17,6 +17,12 @@
 
   <body>
     <div id="root"></div>
+    <!-- Theme initialization script -->
+    <script>
+      // Initialize theme before React loads to prevent flash
+      const theme = localStorage.getItem("catercalc-theme") || "light";
+      document.documentElement.classList.toggle("dark", theme === "dark");
+    </script>
     <!-- CRITICAL: THE FOLLOWING SECTION MUST NOT BE CHANGED BY ANYONE -->
     <script type="module" src="/src/main.tsx"></script>
     <!-- END OF CRITICAL SECTION -->

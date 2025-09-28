@@ -154,13 +154,13 @@ export default function LandingPage() {
     setTimeout(() => {
       setIsLoading(false);
       setShowSignUp(false);
-      // Navigate to dashboard after successful signup
-      navigate("/dashboard");
+      // Navigate to home page after successful signup
+      navigate("/");
     }, 2000);
   };
 
   const handleDemoAccess = () => {
-    navigate("/dashboard");
+    navigate("/");
   };
 
   return (
