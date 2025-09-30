@@ -5,6 +5,7 @@ import recipeRoutes from "./recipes";
 import ingredientsRoutes from "./ingredients";
 import eventsRoutes from "./events";
 import menuRoutes from "./menus";
+import prepListRoutes from "./prepLists";
 
 export async function registerRoutes(app: Express) {
   const httpServer = createServer(app);
@@ -15,6 +16,7 @@ export async function registerRoutes(app: Express) {
   app.use("/api", ingredientsRoutes);
   app.use("/api", eventsRoutes);
   app.use("/api", menuRoutes);
+  app.use("/api", prepListRoutes);
 
   return httpServer;
 }

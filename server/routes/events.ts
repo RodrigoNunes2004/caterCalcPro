@@ -58,7 +58,16 @@ router.post("/events", async (req, res) => {
   try {
     console.log("Creating new event:", req.body);
 
-    const eventData = insertEventSchema.parse(req.body);
+    // Preprocess the data to handle type conversions
+    const processedData = {
+      ...req.body,
+      eventDate: req.body.eventDate ? new Date(req.body.eventDate) : undefined,
+      budgetPercentage: req.body.budgetPercentage
+        ? String(req.body.budgetPercentage)
+        : undefined,
+    };
+
+    const eventData = insertEventSchema.parse(processedData);
     const newEvent = await storage.createEvent(eventData);
 
     console.log("Created event:", newEvent);

@@ -114,7 +114,7 @@ export default function Navigation({
             </VisuallyHidden.Root>
             <div className="flex flex-col space-y-4 mt-8">
               <div className="flex items-center justify-between mb-6">
-                <h2 className="text-lg font-semibold text-gray-900">
+                <h2 className="text-lg font-semibold text-foreground">
                   Navigation
                 </h2>
                 <Button

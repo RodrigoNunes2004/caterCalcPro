@@ -174,7 +174,7 @@ export default function MenusPage() {
                         <h3 className="font-semibold mb-2">
                           Choose Event Type
                         </h3>
-                        <p className="text-sm text-gray-600">
+                        <p className="text-sm text-muted-foreground">
                           Select the category that best matches your event
                           (buffet, corporate lunch, wedding, etc.)
                         </p>
@@ -189,7 +189,7 @@ export default function MenusPage() {
                       </div>
                       <div>
                         <h3 className="font-semibold mb-2">Select Recipes</h3>
-                        <p className="text-sm text-gray-600">
+                        <p className="text-sm text-muted-foreground">
                           Browse your recipe collection and add items that work
                           well together for your chosen event type
                         </p>
@@ -206,7 +206,7 @@ export default function MenusPage() {
                         <h3 className="font-semibold mb-2">
                           Balance Your Menu
                         </h3>
-                        <p className="text-sm text-gray-600">
+                        <p className="text-sm text-muted-foreground">
                           Ensure you have a good mix of appetizers, mains,
                           sides, and desserts with varying prep times
                         </p>
@@ -221,7 +221,7 @@ export default function MenusPage() {
                       </div>
                       <div>
                         <h3 className="font-semibold mb-2">Test & Refine</h3>
-                        <p className="text-sm text-gray-600">
+                        <p className="text-sm text-muted-foreground">
                           Use the prep list generator to test your menu and make
                           adjustments based on timing and costs
                         </p>
@@ -308,9 +308,9 @@ export default function MenusPage() {
               </CardHeader>
               <CardContent>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div className="border rounded-lg p-4 hover:bg-gray-50 cursor-pointer">
+                  <div className="border rounded-lg p-4 hover:bg-muted cursor-pointer">
                     <h3 className="font-semibold mb-2">Corporate Buffet</h3>
-                    <p className="text-sm text-gray-600 mb-3">
+                    <p className="text-sm text-muted-foreground mb-3">
                       Perfect for business meetings and conferences
                     </p>
                     <div className="space-y-1 text-xs text-gray-500">
@@ -322,9 +322,9 @@ export default function MenusPage() {
                     </div>
                   </div>
 
-                  <div className="border rounded-lg p-4 hover:bg-gray-50 cursor-pointer">
+                  <div className="border rounded-lg p-4 hover:bg-muted cursor-pointer">
                     <h3 className="font-semibold mb-2">Elegant Canapés</h3>
-                    <p className="text-sm text-gray-600 mb-3">
+                    <p className="text-sm text-muted-foreground mb-3">
                       Sophisticated finger foods for cocktail events
                     </p>
                     <div className="space-y-1 text-xs text-gray-500">
@@ -336,9 +336,9 @@ export default function MenusPage() {
                     </div>
                   </div>
 
-                  <div className="border rounded-lg p-4 hover:bg-gray-50 cursor-pointer">
+                  <div className="border rounded-lg p-4 hover:bg-muted cursor-pointer">
                     <h3 className="font-semibold mb-2">Morning Tea</h3>
-                    <p className="text-sm text-gray-600 mb-3">
+                    <p className="text-sm text-muted-foreground mb-3">
                       Light refreshments for morning events
                     </p>
                     <div className="space-y-1 text-xs text-gray-500">

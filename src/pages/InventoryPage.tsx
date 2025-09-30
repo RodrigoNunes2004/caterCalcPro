@@ -421,7 +421,7 @@ export default function InventoryPage() {
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center space-x-3">
               <Package className="h-6 w-6 text-orange-600" />
-              <h1 className="text-lg sm:text-xl font-semibold text-gray-900">
+              <h1 className="text-lg sm:text-xl font-semibold text-foreground">
                 Inventory Management
               </h1>
             </div>
@@ -490,7 +490,7 @@ export default function InventoryPage() {
               <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-2">
                   <Calculator className="h-5 w-5 text-orange-600" />
-                  <span className="font-medium text-gray-900">
+                  <span className="font-medium text-foreground">
                     GST Calculation
                   </span>
                   <TooltipProvider>
@@ -511,8 +511,8 @@ export default function InventoryPage() {
                   <span
                     className={`text-sm ${
                       !showGSTInclusive
-                        ? "font-medium text-gray-900"
-                        : "text-gray-600"
+                        ? "font-medium text-foreground"
+                        : "text-muted-foreground"
                     }`}
                   >
                     GST Exclusive
@@ -524,8 +524,8 @@ export default function InventoryPage() {
                   <span
                     className={`text-sm ${
                       showGSTInclusive
-                        ? "font-medium text-gray-900"
-                        : "text-gray-600"
+                        ? "font-medium text-foreground"
+                        : "text-muted-foreground"
                     }`}
                   >
                     GST Inclusive
@@ -540,7 +540,7 @@ export default function InventoryPage() {
         <div className="grid grid-cols-1 md:grid-cols-5 gap-6 mb-8">
           <Card>
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-gray-600">
+              <CardTitle className="text-sm font-medium text-muted-foreground">
                 Total Items
               </CardTitle>
             </CardHeader>
@@ -551,7 +551,7 @@ export default function InventoryPage() {
 
           <Card>
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-gray-600">
+              <CardTitle className="text-sm font-medium text-muted-foreground">
                 Total Value {showGSTInclusive ? "(incl. GST)" : "(excl. GST)"}
               </CardTitle>
             </CardHeader>
@@ -559,7 +559,7 @@ export default function InventoryPage() {
               <div className="text-2xl font-bold text-green-600">
                 {formatNZCurrency(displayTotal)}
               </div>
-              <div className="text-xs text-gray-500 mt-1">
+              <div className="text-xs text-muted-foreground mt-1">
                 {showGSTInclusive
                   ? `Excl: ${formatNZCurrency(gstTotals.totalExclusive)}`
                   : `Incl: ${formatNZCurrency(gstTotals.totalInclusive)}`}
@@ -569,7 +569,7 @@ export default function InventoryPage() {
 
           <Card>
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-gray-600">
+              <CardTitle className="text-sm font-medium text-muted-foreground">
                 GST Amount
               </CardTitle>
             </CardHeader>
@@ -577,13 +577,13 @@ export default function InventoryPage() {
               <div className="text-2xl font-bold text-blue-600">
                 {formatNZCurrency(gstTotals.totalGST)}
               </div>
-              <div className="text-xs text-gray-500 mt-1">15% GST</div>
+              <div className="text-xs text-muted-foreground mt-1">15% GST</div>
             </CardContent>
           </Card>
 
           <Card>
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-gray-600">
+              <CardTitle className="text-sm font-medium text-muted-foreground">
                 Low Stock Items
               </CardTitle>
             </CardHeader>
@@ -596,7 +596,7 @@ export default function InventoryPage() {
 
           <Card>
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-gray-600">
+              <CardTitle className="text-sm font-medium text-muted-foreground">
                 Categories
               </CardTitle>
             </CardHeader>
@@ -834,7 +834,7 @@ export default function InventoryPage() {
                                 })
                               }
                             />
-                            <Label className="text-sm text-gray-600">
+                            <Label className="text-sm text-muted-foreground">
                               Price includes GST (15%)
                             </Label>
                           </div>
@@ -935,7 +935,7 @@ export default function InventoryPage() {
                               <div>
                                 <div>{item.productName}</div>
                                 {item.expiryDate && (
-                                  <div className="text-xs text-gray-500">
+                                  <div className="text-xs text-muted-foreground">
                                     Expires: {item.expiryDate}
                                   </div>
                                 )}
@@ -954,7 +954,7 @@ export default function InventoryPage() {
                               )}
                             </TableCell>
                             <TableCell>
-                              <div className="flex items-center space-x-1 px-2 py-1 rounded-md border bg-gray-50 text-gray-700 border-gray-200">
+                              <div className="flex items-center space-x-1 px-2 py-1 rounded-md border bg-muted text-muted-foreground border-border">
                                 <Package className="h-3 w-3" />
                                 <span className="text-xs font-medium">
                                   {item.location}
@@ -974,7 +974,7 @@ export default function InventoryPage() {
                                 }
                                 className="w-20 h-8"
                               />
-                              <span className="text-xs text-gray-500 ml-1">
+                              <span className="text-xs text-muted-foreground ml-1">
                                 {item.unit}
                               </span>
                             </TableCell>
@@ -999,7 +999,7 @@ export default function InventoryPage() {
                                   </span>
                                 </div>
                                 {item.gstInclusive !== showGSTInclusive && (
-                                  <div className="text-xs text-gray-500">
+                                  <div className="text-xs text-muted-foreground">
                                     {item.gstInclusive
                                       ? "GST incl."
                                       : "GST excl."}
@@ -1027,7 +1027,7 @@ export default function InventoryPage() {
                                   </span>
                                 </div>
                                 {item.gstInclusive !== showGSTInclusive && (
-                                  <div className="text-xs text-gray-500">
+                                  <div className="text-xs text-muted-foreground">
                                     {showGSTInclusive
                                       ? "incl. GST"
                                       : "excl. GST"}
@@ -1049,7 +1049,7 @@ export default function InventoryPage() {
                               <span className="text-sm">{item.supplier}</span>
                             </TableCell>
                             <TableCell>
-                              <span className="text-xs text-gray-500">
+                              <span className="text-xs text-muted-foreground">
                                 {item.lastUpdated}
                               </span>
                             </TableCell>
@@ -1092,10 +1092,10 @@ export default function InventoryPage() {
                 {lowStockItems.length === 0 ? (
                   <div className="text-center py-8">
                     <CheckCircle className="h-12 w-12 text-green-500 mx-auto mb-4" />
-                    <h3 className="text-lg font-medium text-gray-900 mb-2">
+                    <h3 className="text-lg font-medium text-foreground mb-2">
                       All Good!
                     </h3>
-                    <p className="text-gray-600">
+                    <p className="text-muted-foreground">
                       No items are currently low on stock.
                     </p>
                   </div>
@@ -1107,10 +1107,10 @@ export default function InventoryPage() {
                         className="flex items-center justify-between p-4 border border-red-200 rounded-lg bg-red-50"
                       >
                         <div className="flex-1">
-                          <h3 className="font-medium text-gray-900">
+                          <h3 className="font-medium text-foreground">
                             {item.productName}
                           </h3>
-                          <div className="flex items-center space-x-4 mt-1 text-sm text-gray-600">
+                          <div className="flex items-center space-x-4 mt-1 text-sm text-muted-foreground">
                             <span>
                               Current: {item.currentStock} {item.unit}
                             </span>
@@ -1153,18 +1153,18 @@ export default function InventoryPage() {
                   return (
                     <Card
                       key={location}
-                      className="border-2 border-gray-200 hover:border-gray-300"
+                      className="border-2 border-border hover:border-border"
                     >
                       <CardHeader className="pb-3">
                         <div className="flex items-center space-x-2">
-                          <Package className="h-5 w-5 text-gray-600" />
+                          <Package className="h-5 w-5 text-muted-foreground" />
                           <CardTitle className="text-lg">{location}</CardTitle>
                         </div>
                       </CardHeader>
                       <CardContent>
                         <div className="space-y-2">
                           <div className="flex justify-between">
-                            <span className="text-sm text-gray-600">
+                            <span className="text-sm text-muted-foreground">
                               Items:
                             </span>
                             <span className="font-medium">
@@ -1172,7 +1172,7 @@ export default function InventoryPage() {
                             </span>
                           </div>
                           <div className="flex justify-between">
-                            <span className="text-sm text-gray-600">
+                            <span className="text-sm text-muted-foreground">
                               Total Value{" "}
                               {showGSTInclusive ? "(incl. GST)" : "(excl. GST)"}
                               :
@@ -1183,10 +1183,10 @@ export default function InventoryPage() {
                           </div>
                           {locationGSTTotals.totalGST > 0 && (
                             <div className="flex justify-between">
-                              <span className="text-xs text-gray-500">
+                              <span className="text-xs text-muted-foreground">
                                 GST:
                               </span>
-                              <span className="text-xs text-gray-500">
+                              <span className="text-xs text-muted-foreground">
                                 {formatNZCurrency(locationGSTTotals.totalGST)}
                               </span>
                             </div>
@@ -1195,13 +1195,13 @@ export default function InventoryPage() {
                             {itemsInLocation.slice(0, 3).map((item) => (
                               <div
                                 key={item.id}
-                                className="text-xs text-gray-600 truncate"
+                                className="text-xs text-muted-foreground truncate"
                               >
                                 {item.productName}
                               </div>
                             ))}
                             {itemsInLocation.length > 3 && (
-                              <div className="text-xs text-gray-500">
+                              <div className="text-xs text-muted-foreground">
                                 +{itemsInLocation.length - 3} more items
                               </div>
                             )}

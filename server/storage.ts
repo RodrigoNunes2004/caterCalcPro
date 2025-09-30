@@ -46,6 +46,59 @@ export function createDrizzleDb() {
 
 export const db = createDrizzleDb();
 
+// Initialize with sample data if database is empty
+async function initializeSampleData() {
+  try {
+    // Check if we have any events
+    const existingEvents = await db.select().from(events).limit(1);
+
+    if (existingEvents.length === 0) {
+      console.log("Initializing sample data...");
+
+      // Add sample events
+      const sampleEvents = [
+        {
+          id: "sample-event-1",
+          name: "Corporate Lunch Meeting",
+          description: "Business lunch for 50 executives",
+          eventDate: new Date("2024-02-15"),
+          venue: "Conference Center",
+          guestCount: 50,
+          status: "confirmed",
+          budgetPercentage: "15",
+          notes: "Dietary restrictions: 3 vegetarians, 1 gluten-free",
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        },
+        {
+          id: "sample-event-2",
+          name: "Wedding Reception",
+          description: "Elegant wedding dinner for 120 guests",
+          eventDate: new Date("2024-03-20"),
+          venue: "Grand Ballroom",
+          guestCount: 120,
+          status: "planning",
+          budgetPercentage: "25",
+          notes: "Formal dinner service, cocktail hour included",
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        },
+      ];
+
+      for (const event of sampleEvents) {
+        await db.insert(events).values(event as any);
+      }
+
+      console.log("Sample events created successfully");
+    }
+  } catch (error) {
+    console.error("Error initializing sample data:", error);
+  }
+}
+
+// Initialize sample data asynchronously
+initializeSampleData().catch(console.error);
+
 // Storage service layer
 export const storage = {
   // Recipe operations
@@ -369,8 +422,24 @@ export const storage = {
   },
 
   async deleteEvent(id: string): Promise<boolean> {
-    const result = await db.delete(events).where(eq(events.id, id));
-    return (result as any).rowCount > 0;
+    try {
+      // First check if the event exists
+      const existingEvent = await db
+        .select()
+        .from(events)
+        .where(eq(events.id, id))
+        .limit(1);
+      if (existingEvent.length === 0) {
+        return false;
+      }
+
+      // Delete the event
+      await db.delete(events).where(eq(events.id, id));
+      return true;
+    } catch (error) {
+      console.error("Error deleting event:", error);
+      return false;
+    }
   },
 
   // Additional methods expected by route files

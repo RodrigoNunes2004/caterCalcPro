@@ -23,6 +23,10 @@ export default defineConfig(({ mode, command }) => {
       port: 3000,
       host: true,
       historyApiFallback: true,
+      hmr: {
+        port: 3000,
+        host: "localhost",
+      },
     },
   };
 });

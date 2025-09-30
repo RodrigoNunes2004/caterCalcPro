@@ -28,6 +28,8 @@ export async function setupVite(app: Express, server: Server) {
     middlewareMode: true,
     hmr: {
       server,
+      port: 3000,
+      host: "localhost",
     },
     allowedHosts: true as const,
   };

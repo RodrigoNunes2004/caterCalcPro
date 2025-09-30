@@ -1,57 +1,63 @@
-import "dotenv/config";
-import express, { Request, Response, NextFunction } from "express";
-import { createServer } from "http";
+import express from "express";
 import cors from "cors";
-import { registerRoutes } from "./routes";
-import { setupVite, serveStatic, log } from "./vite";
+import { createServer } from "http";
+import { registerRoutes } from "./routes/index.js";
+import { setupVite, serveStatic, log } from "./vite.js";
+import { storage } from "./storage.js";
 
 const app = express();
-
-// Set environment
-app.set("env", process.env.NODE_ENV || "development");
+const server = createServer(app);
 
 // Middleware
 app.use(cors());
 app.use(express.json());
-app.use(express.urlencoded({ extended: false }));
+app.use(express.urlencoded({ extended: true }));
 
-// API request logger
-app.use((req, res, next) => {
-  const start = Date.now();
-  const path = req.path;
+// Database will be initialized on first access
+log("Database will be initialized on first access");
 
-  res.on("finish", () => {
-    const duration = Date.now() - start;
-    if (path.startsWith("/api")) {
-      log(`${req.method} ${path} ${res.statusCode} in ${duration}ms`);
-    }
-  });
+// Register API routes
+log("Registering API routes...");
+await registerRoutes(app);
 
-  next();
+// Setup Vite for development or serve static files for production
+if (process.env.NODE_ENV === "development") {
+  log("Setting up Vite development server...");
+  await setupVite(app, server);
+} else {
+  log("Setting up static file serving...");
+  serveStatic(app);
+}
+
+// Error handling middleware
+app.use((err: any, req: any, res: any, next: any) => {
+  log(`Error: ${err.message}`, "error");
+  console.error(err);
+  res.status(500).json({ error: "Internal server error" });
 });
 
-// Register routes and start server
-(async () => {
-  await registerRoutes(app);
+// Start server
+const PORT = process.env.PORT || 3000;
+const HOST = process.env.HOST || "0.0.0.0";
 
-  const PORT = process.env.PORT || 3000;
+server.listen(PORT, HOST, () => {
+  log(`Server running on http://${HOST}:${PORT}`);
+  log(`Environment: ${process.env.NODE_ENV || "development"}`);
+});
 
-  const server = createServer(app);
-
-  // Serve frontend via Vite (optional)
-  if (process.env.NODE_ENV === "production") {
-    serveStatic(app);
-  } else {
-    await setupVite(app, server);
-  }
-
-  server.listen(PORT, () => {
-    log(`🚀 CaterCalc Pro server running at http://localhost:${PORT}`);
+// Graceful shutdown
+process.on("SIGTERM", () => {
+  log("SIGTERM received, shutting down gracefully...");
+  server.close(() => {
+    log("Server closed");
+    process.exit(0);
   });
-})();
+});
 
-// Error handler
-app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
-  log(`❌ Error: ${err.message}`);
-  res.status(500).json({ error: err.message });
+process.on("SIGINT", () => {
+  log("SIGINT received, shutting down gracefully...");
+  server.close(() => {
+    log("Server closed");
+    process.exit(0);
+  });
 });

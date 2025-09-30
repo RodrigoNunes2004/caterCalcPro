@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Plus,
@@ -133,35 +133,19 @@ const EVENT_TYPES: EventType[] = [
   },
 ];
 
-const RECENT_EVENTS = [
-  {
-    id: 1,
-    name: "Tech Conference Buffet",
-    type: "buffet",
-    date: "2024-01-15",
-    guests: 150,
-    status: "confirmed",
-    totalCost: 3750,
-  },
-  {
-    id: 2,
-    name: "Board Meeting Morning Tea",
-    type: "morning-tea",
-    date: "2024-01-18",
-    guests: 25,
-    status: "planning",
-    totalCost: 275,
-  },
-  {
-    id: 3,
-    name: "Product Launch Cocktails",
-    type: "canapes",
-    date: "2024-01-22",
-    guests: 80,
-    status: "confirmed",
-    totalCost: 1280,
-  },
-];
+interface Event {
+  id: string;
+  name: string;
+  description: string;
+  eventType: string;
+  eventDate: string;
+  guestCount: number;
+  venue: string;
+  budgetPercentage: string;
+  status: string;
+  createdAt: string;
+  updatedAt: string;
+}
 
 interface EventFormData {
   name: string;
@@ -178,6 +162,8 @@ export default function EventsPage() {
   const [selectedEventType, setSelectedEventType] = useState<string>("");
   const [selectedPrepGuide, setSelectedPrepGuide] = useState<string>("buffet");
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+  const [events, setEvents] = useState<Event[]>([]);
+  const [loading, setLoading] = useState(true);
   const [formData, setFormData] = useState<EventFormData>({
     name: "",
     description: "",
@@ -187,6 +173,28 @@ export default function EventsPage() {
     venue: "",
     budgetPercentage: 0,
   });
+
+  // Fetch events from API
+  const fetchEvents = async () => {
+    try {
+      setLoading(true);
+      const response = await fetch("/api/events");
+      if (response.ok) {
+        const data = await response.json();
+        setEvents(data.events || []);
+      } else {
+        console.error("Failed to fetch events");
+      }
+    } catch (error) {
+      console.error("Error fetching events:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchEvents();
+  }, []);
 
   const handleCreateEvent = (eventType: string) => {
     setSelectedEventType(eventType);
@@ -263,8 +271,12 @@ export default function EventsPage() {
       setIsCreateDialogOpen(false);
       resetForm();
 
-      // Optionally refresh the page or update local state
-      window.location.reload();
+      // Refresh events list
+      const refreshResponse = await fetch("/api/events");
+      if (refreshResponse.ok) {
+        const data = await refreshResponse.json();
+        setEvents(data.events || []);
+      }
     } catch (error) {
       console.error("Error creating event:", error);
       toast({
@@ -285,6 +297,54 @@ export default function EventsPage() {
       venue: "",
       budgetPercentage: 0,
     });
+  };
+
+  const handleEditEvent = (event: Event) => {
+    setFormData({
+      name: event.name,
+      description: event.description,
+      eventType: event.eventType,
+      date: event.eventDate.split("T")[0], // Convert to YYYY-MM-DD format
+      guestCount: event.guestCount,
+      venue: event.venue,
+      budgetPercentage: parseFloat(event.budgetPercentage) || 0,
+    });
+    setIsCreateDialogOpen(true);
+  };
+
+  const handleDeleteEvent = async (eventId: string) => {
+    if (!confirm("Are you sure you want to delete this event?")) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/events/${eventId}`, {
+        method: "DELETE",
+      });
+
+      if (response.ok) {
+        toast({
+          title: "Event Deleted",
+          description: "Event has been successfully deleted.",
+        });
+
+        // Refresh events list
+        const refreshResponse = await fetch("/api/events");
+        if (refreshResponse.ok) {
+          const data = await refreshResponse.json();
+          setEvents(data.events || []);
+        }
+      } else {
+        throw new Error("Failed to delete event");
+      }
+    } catch (error) {
+      console.error("Error deleting event:", error);
+      toast({
+        title: "Error",
+        description: "Failed to delete event. Please try again.",
+        variant: "destructive",
+      });
+    }
   };
 
   const getColorClasses = (color: string) => {
@@ -375,7 +435,7 @@ export default function EventsPage() {
                     <CardHeader className="pb-3">
                       <div className="flex items-center justify-between">
                         <div
-                          className={`p-2 rounded-lg bg-gray-50 ${getIconColorClasses(
+                          className={`p-2 rounded-lg bg-muted ${getIconColorClasses(
                             eventType.color
                           )}`}
                         >
@@ -456,7 +516,7 @@ export default function EventsPage() {
                     <CardHeader className="pb-3">
                       <div className="flex items-center justify-between">
                         <div
-                          className={`p-2 rounded-lg bg-gray-50 ${getIconColorClasses(
+                          className={`p-2 rounded-lg bg-muted ${getIconColorClasses(
                             eventType.color
                           )}`}
                         >
@@ -537,63 +597,92 @@ export default function EventsPage() {
               </Button>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {RECENT_EVENTS.map((event) => (
-                <Card
-                  key={event.id}
-                  className="hover:shadow-lg transition-shadow"
-                >
-                  <CardHeader>
-                    <div className="flex justify-between items-start">
-                      <CardTitle className="text-lg">{event.name}</CardTitle>
-                      <Badge
-                        variant={
-                          event.status === "confirmed" ? "default" : "secondary"
+            {loading ? (
+              <div className="text-center py-8">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-600 mx-auto"></div>
+                <p className="mt-2 text-gray-600">Loading events...</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {events.map((event) => (
+                  <Card
+                    key={event.id}
+                    className="hover:shadow-lg transition-shadow"
+                  >
+                    <CardHeader>
+                      <div className="flex justify-between items-start">
+                        <CardTitle className="text-lg">{event.name}</CardTitle>
+                        <Badge
+                          variant={
+                            event.status === "confirmed"
+                              ? "default"
+                              : "secondary"
+                          }
+                        >
+                          {event.status}
+                        </Badge>
+                      </div>
+                      <CardDescription>
+                        {
+                          EVENT_TYPES.find(
+                            (type) => type.id === event.eventType
+                          )?.name
                         }
-                      >
-                        {event.status}
-                      </Badge>
-                    </div>
-                    <CardDescription>
-                      {EVENT_TYPES.find((type) => type.id === event.type)?.name}
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-2 text-sm">
-                      <div className="flex justify-between">
-                        <span className="text-gray-600">Date:</span>
-                        <span className="font-medium">{event.date}</span>
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-2 text-sm">
+                        <div className="flex justify-between">
+                          <span className="text-gray-600">Date:</span>
+                          <span className="font-medium">
+                            {new Date(event.eventDate).toLocaleDateString()}
+                          </span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-gray-600">Guests:</span>
+                          <span className="font-medium">
+                            {event.guestCount}
+                          </span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-gray-600">Venue:</span>
+                          <span className="font-medium">
+                            {event.venue || "TBD"}
+                          </span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-gray-600">Budget:</span>
+                          <span className="font-medium">
+                            {event.budgetPercentage}%
+                          </span>
+                        </div>
                       </div>
-                      <div className="flex justify-between">
-                        <span className="text-gray-600">Guests:</span>
-                        <span className="font-medium">{event.guests}</span>
+                      <div className="flex space-x-2 mt-4">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="flex-1"
+                          onClick={() => handleEditEvent(event)}
+                        >
+                          Edit
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="flex-1"
+                          onClick={() => handleDeleteEvent(event.id)}
+                        >
+                          Delete
+                        </Button>
                       </div>
-                      <div className="flex justify-between">
-                        <span className="text-gray-600">Total Cost:</span>
-                        <span className="font-medium">${event.totalCost}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-gray-600">Cost per Person:</span>
-                        <span className="font-medium">
-                          ${(event.totalCost / event.guests).toFixed(2)}
-                        </span>
-                      </div>
-                    </div>
-                    <div className="flex space-x-2 mt-4">
-                      <Button variant="outline" size="sm" className="flex-1">
-                        Edit
-                      </Button>
-                      <Button variant="outline" size="sm" className="flex-1">
-                        Duplicate
-                      </Button>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            )}
 
             {/* Empty State for Recent Events */}
-            {RECENT_EVENTS.length === 0 && (
+            {!loading && events.length === 0 && (
               <Card>
                 <CardContent className="text-center py-12">
                   <Calendar className="h-12 w-12 text-gray-400 mx-auto mb-4" />

@@ -57,7 +57,15 @@ router.post("/ingredients", async (req, res) => {
   try {
     console.log("Creating new ingredient:", req.body);
 
-    const ingredientData = insertIngredientSchema.parse(req.body);
+    // Preprocess the data to handle type conversions
+    const processedData = {
+      ...req.body,
+      costPerUnit: req.body.costPerUnit
+        ? String(req.body.costPerUnit)
+        : undefined,
+    };
+
+    const ingredientData = insertIngredientSchema.parse(processedData);
     const newIngredient = await storage.createIngredient(ingredientData);
 
     console.log("Created ingredient:", newIngredient);

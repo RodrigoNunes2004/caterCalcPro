@@ -69,13 +69,13 @@ router.get("/menus", async (req, res) => {
 
     // Filter by search term if provided
     const filteredMenus = search
-      ? menus.filter(
+      ? mockMenus.filter(
           (menu) =>
             menu.name.toLowerCase().includes(search.toLowerCase()) ||
             menu.description.toLowerCase().includes(search.toLowerCase()) ||
             menu.category.toLowerCase().includes(search.toLowerCase())
         )
-      : menus;
+      : mockMenus;
 
     res.json(filteredMenus);
   } catch (error) {

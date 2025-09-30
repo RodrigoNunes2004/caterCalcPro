@@ -24,7 +24,7 @@
     "db:push": "drizzle-kit push && npm run restart-express",
     "lint": "eslint .",
     "preview": "vite preview",
-    "restart-express": "touch server/index.ts",
+    "restart-express": "echo Restarting server...",
     "cz": "git-cz"
   },
   "dependencies": {
