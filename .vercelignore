@@ -1,0 +1,9 @@
+# Vercel ignore file
+node_modules
+.git
+.env.local
+.env.development
+dev.db
+*.log
+.DS_Store
+Thumbs.db

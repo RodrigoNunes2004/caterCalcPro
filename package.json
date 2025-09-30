@@ -16,10 +16,11 @@
   "keywords": [],
   "scripts": {
     "dev": "cross-env NODE_ENV=development tsx --watch server/index.ts",
-    "build": "npm run build:client && npm run build:express",
+    "build": "npm run build:client",
     "build:client": "vite build",
     "build:express": "esbuild server/index.ts --platform=node --packages=external --bundle --format=esm --outdir=dist",
     "start": "cross-env NODE_ENV=production node dist/index.js",
+    "vercel-build": "npm run build:client",
     "check": "tsc",
     "db:push": "drizzle-kit push && npm run restart-express",
     "lint": "eslint .",
