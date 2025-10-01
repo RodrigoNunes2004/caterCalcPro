@@ -1,11 +1,11 @@
 import { type Express } from "express";
 import { createServer } from "http";
-import healthRoutes from "./health";
-import recipeRoutes from "./recipes";
-import ingredientsRoutes from "./ingredients";
-import eventsRoutes from "./events";
-import menuRoutes from "./menus";
-import prepListRoutes from "./prepLists";
+import healthRoutes from "./health.js";
+import recipeRoutes from "./recipes.js";
+import ingredientsRoutes from "./ingredients.js";
+import eventsRoutes from "./events.js";
+import menuRoutes from "./menus.js";
+import prepListRoutes from "./prepLists.js";
 
 export async function registerRoutes(app: Express) {
   const httpServer = createServer(app);
