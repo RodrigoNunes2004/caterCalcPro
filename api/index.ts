@@ -1,7 +1,5 @@
 import express from "express";
 import cors from "cors";
-import { registerRoutes } from "../server/routes/index.js";
-import { serveStatic, log } from "../server/vite.js";
 
 const app = express();
 
@@ -27,21 +25,36 @@ app.get("/api/test", (req, res) => {
   res.json({ message: "API is working!" });
 });
 
-// Database will be initialized on first access
-log("Database will be initialized on first access");
-
-// Register API routes asynchronously
-log("Registering API routes...");
-registerRoutes(app).catch((error) => {
-  log(`Error registering routes: ${error.message}`, "error");
-  console.error(error);
+// Events endpoint (simplified)
+app.get("/api/events", (req, res) => {
+  console.log("Events endpoint called");
+  res.json([
+    {
+      id: "1",
+      name: "Sample Event",
+      description: "This is a test event",
+      eventDate: new Date().toISOString(),
+      venue: "Test Venue",
+      guestCount: 50,
+      status: "confirmed"
+    }
+  ]);
 });
 
-// Serve static files for production
-if (process.env.NODE_ENV === "production") {
-  log("Setting up static file serving...");
-  serveStatic(app);
-}
+// Menus endpoint (simplified)
+app.get("/api/menus", (req, res) => {
+  console.log("Menus endpoint called");
+  res.json([
+    {
+      id: "1",
+      name: "Sample Menu",
+      description: "This is a test menu",
+      category: "test",
+      isActive: true,
+      totalCost: 100.0
+    }
+  ]);
+});
 
 // Catch-all route for debugging
 app.get("*", (req, res) => {
@@ -56,8 +69,7 @@ app.get("*", (req, res) => {
 
 // Error handling middleware
 app.use((err: any, req: any, res: any, next: any) => {
-  log(`Error: ${err.message}`, "error");
-  console.error(err);
+  console.error("Error:", err);
   res.status(500).json({ error: "Internal server error" });
 });
 
