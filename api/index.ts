@@ -12,11 +12,11 @@ app.use(express.urlencoded({ extended: true }));
 
 // Health check endpoint
 app.get("/api/health", (req, res) => {
-  res.json({ 
-    status: "ok", 
+  res.json({
+    status: "ok",
     timestamp: new Date().toISOString(),
     environment: process.env.NODE_ENV || "development",
-    database: process.env.DATABASE_URL ? "connected" : "not configured"
+    database: process.env.DATABASE_URL ? "connected" : "not configured",
   });
 });
 
