@@ -10,12 +10,25 @@ app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+// Health check endpoint
+app.get("/api/health", (req, res) => {
+  res.json({ 
+    status: "ok", 
+    timestamp: new Date().toISOString(),
+    environment: process.env.NODE_ENV || "development",
+    database: process.env.DATABASE_URL ? "connected" : "not configured"
+  });
+});
+
 // Database will be initialized on first access
 log("Database will be initialized on first access");
 
-// Register API routes
+// Register API routes asynchronously
 log("Registering API routes...");
-await registerRoutes(app);
+registerRoutes(app).catch((error) => {
+  log(`Error registering routes: ${error.message}`, "error");
+  console.error(error);
+});
 
 // Serve static files for production
 if (process.env.NODE_ENV === "production") {
