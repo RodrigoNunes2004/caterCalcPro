@@ -1,5 +1,10 @@
 import express from "express";
 import cors from "cors";
+import path from "path";
+import { fileURLToPath } from "url";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const app = express();
 
@@ -7,6 +12,9 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+// Serve static files from the dist directory
+app.use(express.static(path.join(__dirname, "../dist")));
 
 // Health check endpoint
 app.get("/api/health", (req, res) => {
@@ -56,15 +64,22 @@ app.get("/api/menus", (req, res) => {
   ]);
 });
 
-// Catch-all route for debugging
+// Catch-all route: send back React's index.html file for any non-API routes
 app.get("*", (req, res) => {
-  console.log(`Unhandled route: ${req.method} ${req.path}`);
-  res.status(404).json({ 
-    error: "Not found", 
-    path: req.path,
-    method: req.method,
-    message: "This route is not handled by the API"
-  });
+  // If it's an API route, return 404
+  if (req.path.startsWith("/api/")) {
+    console.log(`Unhandled API route: ${req.method} ${req.path}`);
+    res.status(404).json({ 
+      error: "Not found", 
+      path: req.path,
+      method: req.method,
+      message: "This API route is not handled"
+    });
+  } else {
+    // For all other routes, serve the React app
+    console.log(`Serving React app for: ${req.path}`);
+    res.sendFile(path.join(__dirname, "../dist/index.html"));
+  }
 });
 
 // Error handling middleware
