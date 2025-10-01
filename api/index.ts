@@ -13,8 +13,8 @@ app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Serve static files from the dist directory
-app.use(express.static(path.join(__dirname, "../dist")));
+// Serve static files from the dist/public directory
+app.use(express.static(path.join(__dirname, "../dist/public")));
 
 // Health check endpoint
 app.get("/api/health", (req, res) => {
@@ -78,7 +78,7 @@ app.get("*", (req, res) => {
   } else {
     // For all other routes, serve the React app
     console.log(`Serving React app for: ${req.path}`);
-    res.sendFile(path.join(__dirname, "../dist/index.html"));
+    res.sendFile(path.join(__dirname, "../dist/public/index.html"));
   }
 });
 
