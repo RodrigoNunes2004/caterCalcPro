@@ -12,12 +12,19 @@ app.use(express.urlencoded({ extended: true }));
 
 // Health check endpoint
 app.get("/api/health", (req, res) => {
+  console.log("Health check endpoint called");
   res.json({
     status: "ok",
     timestamp: new Date().toISOString(),
     environment: process.env.NODE_ENV || "development",
     database: process.env.DATABASE_URL ? "connected" : "not configured",
   });
+});
+
+// Simple test endpoint
+app.get("/api/test", (req, res) => {
+  console.log("Test endpoint called");
+  res.json({ message: "API is working!" });
 });
 
 // Database will be initialized on first access
@@ -35,6 +42,17 @@ if (process.env.NODE_ENV === "production") {
   log("Setting up static file serving...");
   serveStatic(app);
 }
+
+// Catch-all route for debugging
+app.get("*", (req, res) => {
+  console.log(`Unhandled route: ${req.method} ${req.path}`);
+  res.status(404).json({ 
+    error: "Not found", 
+    path: req.path,
+    method: req.method,
+    message: "This route is not handled by the API"
+  });
+});
 
 // Error handling middleware
 app.use((err: any, req: any, res: any, next: any) => {
