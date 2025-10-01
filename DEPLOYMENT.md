@@ -71,10 +71,10 @@ vercel --prod
 
 ## Environment Variables
 
-| Variable | Description | Required |
-|----------|-------------|----------|
-| `DATABASE_URL` | Neon PostgreSQL connection string | Yes |
-| `NODE_ENV` | Environment (production) | Yes |
+| Variable       | Description                       | Required |
+| -------------- | --------------------------------- | -------- |
+| `DATABASE_URL` | Neon PostgreSQL connection string | Yes      |
+| `NODE_ENV`     | Environment (production)          | Yes      |
 
 ## Build Configuration
 
@@ -90,10 +90,12 @@ The project is configured with:
 ### Common Issues
 
 1. **Database Connection Errors**
+
    - Verify `DATABASE_URL` is correctly set
    - Ensure database is accessible from Vercel's IP ranges
 
 2. **Build Failures**
+
    - Check that all dependencies are in `package.json`
    - Verify TypeScript compilation
 
