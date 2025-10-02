@@ -316,7 +316,8 @@ router.post("/prep-lists", async (req, res) => {
     const scaledIngredients: ScaledIngredient[] = [];
     const ingredientMap = new Map<string, ScaledIngredient>();
 
-    for (const recipe of allRecipes) {
+    for (const menuRecipe of allRecipes) {
+      const recipe = menuRecipe.recipe; // Extract the actual recipe from menu structure
       const scaleFactor = guestCount / recipe.servings;
 
       if (recipe.ingredients && recipe.ingredients.length > 0) {
@@ -539,4 +540,3 @@ router.get("/prep-lists/:id", async (req, res) => {
 });
 
 export default router;
-

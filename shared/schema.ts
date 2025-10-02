@@ -98,6 +98,34 @@ export const eventRecipes = pgTable("event_recipes", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
+// Menus table for managing menu collections
+export const menus = pgTable("menus", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  name: text("name").notNull(),
+  description: text("description"),
+  category: varchar("category", { length: 50 }).notNull(), // corporate, wedding, casual, etc.
+  isActive: boolean("is_active").default(true),
+  totalCost: decimal("total_cost", { precision: 10, scale: 2 }).default("0"),
+  totalRecipes: integer("total_recipes").default(0),
+  avgPrepTime: integer("avg_prep_time").default(0), // in minutes
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+// Menu-Recipe relationships (which recipes are included in which menus)
+export const menuRecipes = pgTable("menu_recipes", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  menuId: uuid("menu_id")
+    .references(() => menus.id, { onDelete: "cascade" })
+    .notNull(),
+  recipeId: uuid("recipe_id")
+    .references(() => recipes.id, { onDelete: "cascade" })
+    .notNull(),
+  order: integer("order").default(0), // for ordering recipes within a menu
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
 // Zod schemas for validation
 export const insertRecipeSchema = createInsertSchema(recipes);
 export const selectRecipeSchema = createSelectSchema(recipes);
@@ -121,6 +149,13 @@ export const updateEventSchema = insertEventSchema.partial();
 
 export const insertEventRecipeSchema = createInsertSchema(eventRecipes);
 export const selectEventRecipeSchema = createSelectSchema(eventRecipes);
+
+export const insertMenuSchema = createInsertSchema(menus);
+export const selectMenuSchema = createSelectSchema(menus);
+export const updateMenuSchema = insertMenuSchema.partial();
+
+export const insertMenuRecipeSchema = createInsertSchema(menuRecipes);
+export const selectMenuRecipeSchema = createSelectSchema(menuRecipes);
 
 // TypeScript types
 export type Recipe = z.infer<typeof selectRecipeSchema>;
@@ -146,6 +181,13 @@ export type UpdateEvent = z.infer<typeof updateEventSchema>;
 export type EventRecipe = z.infer<typeof selectEventRecipeSchema>;
 export type InsertEventRecipe = z.infer<typeof insertEventRecipeSchema>;
 
+export type Menu = z.infer<typeof selectMenuSchema>;
+export type InsertMenu = z.infer<typeof insertMenuSchema>;
+export type UpdateMenu = z.infer<typeof updateMenuSchema>;
+
+export type MenuRecipe = z.infer<typeof selectMenuRecipeSchema>;
+export type InsertMenuRecipe = z.infer<typeof insertMenuRecipeSchema>;
+
 // Extended types for API responses with relationships
 export type RecipeWithIngredients = Recipe & {
   ingredients: (RecipeIngredient & { ingredient: Ingredient })[];
@@ -154,4 +196,8 @@ export type RecipeWithIngredients = Recipe & {
 
 export type EventWithRecipes = Event & {
   recipes: (EventRecipe & { recipe: Recipe })[];
+};
+
+export type MenuWithRecipes = Menu & {
+  recipes: (MenuRecipe & { recipe: Recipe })[];
 };

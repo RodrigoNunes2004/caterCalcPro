@@ -9,6 +9,7 @@ import {
   Plus,
   Menu as HamburgerIcon,
   X,
+  Scale,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -51,6 +52,7 @@ export default function Navigation({
     { path: "/events", label: "Events", icon: Calendar },
     { path: "/inventory", label: "Inventory", icon: Package },
     { path: "/prep-list", label: "Prep Lists", icon: Calculator },
+    { path: "/unit-converter", label: "Unit Converter", icon: Scale },
   ];
 
   const handleNavigation = (path: string) => {

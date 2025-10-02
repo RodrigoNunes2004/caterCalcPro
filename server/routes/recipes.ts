@@ -272,15 +272,15 @@ router.post("/recipes/shopping-list", async (req, res) => {
   try {
     const { recipes: recipeList, guestCount } = req.body;
 
-    console.log(
-      `Generating shopping list for ${recipeList.length} recipes, guests: ${guestCount}`
-    );
-
     if (!Array.isArray(recipeList) || recipeList.length === 0) {
       return res
         .status(400)
         .json({ error: "Recipe list is required and must not be empty" });
     }
+
+    console.log(
+      `Generating shopping list for ${recipeList.length} recipes, guests: ${guestCount}`
+    );
 
     const shoppingList = await storage.generateShoppingList(
       recipeList,

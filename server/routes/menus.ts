@@ -3,81 +3,26 @@ import { storage } from "../storage";
 
 const router = Router();
 
-// In-memory storage for menus (in production, this would be in a database)
-let menus: any[] = [
-  {
-    id: "1",
-    name: "Corporate Buffet Menu",
-    description: "Perfect for business meetings and conferences",
-    category: "corporate",
-    isActive: true,
-    recipeIds: ["1", "2", "3"], // Sample recipe IDs
-    totalCost: 125.5,
-    totalRecipes: 3,
-    avgPrepTime: 45,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  },
-  {
-    id: "2",
-    name: "Wedding Reception Menu",
-    description: "Elegant dining for special celebrations",
-    category: "wedding",
-    isActive: true,
-    recipeIds: ["1", "4", "5", "6"], // Sample recipe IDs
-    totalCost: 275.0,
-    totalRecipes: 4,
-    avgPrepTime: 90,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  },
-];
-
 // Get all menus with search functionality
 router.get("/menus", async (req, res) => {
   try {
     const search = req.query.search as string;
-    console.log(`Fetching menus - search: ${search}`);
+    const category = req.query.category as string;
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 50;
 
-    // For now, return mock data since we don't have menu storage yet
-    const mockMenus = [
-      {
-        id: "1",
-        name: "Corporate Buffet Menu",
-        description: "Perfect for business meetings and conferences",
-        category: "corporate",
-        isActive: true,
-        totalCost: 125.5,
-        totalRecipes: 5,
-        avgPrepTime: 45,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      },
-      {
-        id: "2",
-        name: "Wedding Reception Menu",
-        description: "Elegant dining for special celebrations",
-        category: "wedding",
-        isActive: true,
-        totalCost: 275.0,
-        totalRecipes: 8,
-        avgPrepTime: 90,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      },
-    ];
+    console.log(
+      `Fetching menus - search: ${search}, category: ${category}, page: ${page}, limit: ${limit}`
+    );
 
-    // Filter by search term if provided
-    const filteredMenus = search
-      ? mockMenus.filter(
-          (menu) =>
-            menu.name.toLowerCase().includes(search.toLowerCase()) ||
-            menu.description.toLowerCase().includes(search.toLowerCase()) ||
-            menu.category.toLowerCase().includes(search.toLowerCase())
-        )
-      : mockMenus;
+    const result = await storage.getMenus({
+      search,
+      category,
+      page,
+      limit,
+    });
 
-    res.json(filteredMenus);
+    res.json(result);
   } catch (error) {
     console.error("Error fetching menus:", error);
     res.status(500).json({ error: "Failed to fetch menus" });
@@ -148,26 +93,29 @@ router.post("/menus", async (req, res) => {
       }
     }
 
-    // Create new menu and add to persistent storage
-    const newMenu = {
-      id: Date.now().toString(),
+    // Create new menu in database
+    const newMenu = await storage.createMenu({
       name,
       description: description || "",
       category,
       isActive: isActive !== false,
-      recipeIds: recipeIds || [], // Store the recipe IDs
-      totalCost: totalCost,
+      totalCost: totalCost.toString(),
       totalRecipes: recipeIds ? recipeIds.length : 0,
       avgPrepTime: avgPrepTime,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
+    });
 
-    // Add to persistent storage
-    menus.push(newMenu);
+    // Add recipes to menu if provided
+    if (recipeIds && recipeIds.length > 0) {
+      for (let i = 0; i < recipeIds.length; i++) {
+        await storage.addRecipeToMenu({
+          menuId: newMenu.id,
+          recipeId: recipeIds[i],
+          order: i,
+        });
+      }
+    }
 
     console.log("Created menu:", newMenu);
-    console.log("Total menus now:", menus.length);
     res.status(201).json(newMenu);
   } catch (error) {
     console.error("Error creating menu:", error);
@@ -187,9 +135,9 @@ router.put("/menus/:id", async (req, res) => {
       return res.status(400).json({ error: "Name and category are required" });
     }
 
-    // Find and update menu in persistent storage
-    const menuIndex = menus.findIndex((menu) => menu.id === id);
-    if (menuIndex === -1) {
+    // Check if menu exists
+    const existingMenu = await storage.getMenu(id);
+    if (!existingMenu) {
       return res.status(404).json({ error: "Menu not found" });
     }
 
@@ -246,20 +194,37 @@ router.put("/menus/:id", async (req, res) => {
       }
     }
 
-    const updatedMenu = {
-      ...menus[menuIndex],
+    // Update menu in database
+    const updatedMenu = await storage.updateMenu(id, {
       name,
       description: description || "",
       category,
       isActive: isActive !== false,
-      recipeIds: recipeIds || [], // Store the recipe IDs
-      totalCost: totalCost,
+      totalCost: totalCost.toString(),
       totalRecipes: recipeIds ? recipeIds.length : 0,
       avgPrepTime: avgPrepTime,
-      updatedAt: new Date().toISOString(),
-    };
+    });
 
-    menus[menuIndex] = updatedMenu;
+    if (!updatedMenu) {
+      return res.status(404).json({ error: "Menu not found" });
+    }
+
+    // Update recipes in menu if provided
+    if (recipeIds) {
+      // Remove existing recipes
+      for (const existingRecipe of existingMenu.recipes || []) {
+        await storage.removeRecipeFromMenu(id, existingRecipe.recipeId);
+      }
+
+      // Add new recipes
+      for (let i = 0; i < recipeIds.length; i++) {
+        await storage.addRecipeToMenu({
+          menuId: id,
+          recipeId: recipeIds[i],
+          order: i,
+        });
+      }
+    }
 
     console.log("Updated menu:", updatedMenu);
     res.json(updatedMenu);
@@ -275,15 +240,12 @@ router.delete("/menus/:id", async (req, res) => {
     const { id } = req.params;
     console.log(`Deleting menu with ID: ${id}`);
 
-    // Find and delete menu from persistent storage
-    const menuIndex = menus.findIndex((menu) => menu.id === id);
-    if (menuIndex === -1) {
+    const success = await storage.deleteMenu(id);
+    if (!success) {
       return res.status(404).json({ error: "Menu not found" });
     }
 
-    menus.splice(menuIndex, 1);
     console.log(`Successfully deleted menu ${id}`);
-    console.log("Total menus now:", menus.length);
     res.json({ success: true });
   } catch (error) {
     console.error("Error deleting menu:", error);
@@ -297,45 +259,13 @@ router.get("/menus/:id", async (req, res) => {
     const { id } = req.params;
     console.log(`Fetching menu details for ID: ${id}`);
 
-    const menu = menus.find((menu) => menu.id === id);
+    const menu = await storage.getMenu(id);
     if (!menu) {
       return res.status(404).json({ error: "Menu not found" });
     }
 
-    // Fetch recipe details for the menu's recipe IDs
-    let menuRecipes = [];
-    if (menu.recipeIds && menu.recipeIds.length > 0) {
-      try {
-        // Fetch recipes from the recipes API
-        const recipePromises = menu.recipeIds.map(async (recipeId: string) => {
-          try {
-            const response = await fetch(
-              `http://localhost:3000/api/recipes/${recipeId}`
-            );
-            if (response.ok) {
-              return await response.json();
-            }
-            return null;
-          } catch (error) {
-            console.error(`Error fetching recipe ${recipeId}:`, error);
-            return null;
-          }
-        });
-
-        const recipeResults = await Promise.all(recipePromises);
-        menuRecipes = recipeResults.filter((recipe) => recipe !== null);
-      } catch (error) {
-        console.error("Error fetching menu recipes:", error);
-      }
-    }
-
-    const menuWithRecipes = {
-      ...menu,
-      recipes: menuRecipes,
-    };
-
-    console.log("Menu with recipes:", menuWithRecipes);
-    res.json(menuWithRecipes);
+    console.log("Menu with recipes:", menu);
+    res.json(menu);
   } catch (error) {
     console.error("Error fetching menu details:", error);
     res.status(500).json({ error: "Failed to fetch menu details" });

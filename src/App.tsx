@@ -14,6 +14,7 @@ import MenuPage from "./pages/MenuPage";
 import EventsPage from "./pages/EventsPage";
 import InventoryPage from "./pages/InventoryPage";
 import PrepListPage from "./pages/PrepListPage";
+import UnitConverterPage from "./pages/UnitConverterPage";
 import LandingPage from "./pages/LandingPage";
 import NotFound from "./pages/NotFound";
 import "./index.css";
@@ -47,6 +48,7 @@ function App() {
               <Route path="/events" element={<EventsPage />} />
               <Route path="/inventory" element={<InventoryPage />} />
               <Route path="/prep-list" element={<PrepListPage />} />
+              <Route path="/unit-converter" element={<UnitConverterPage />} />
               <Route path="/landing" element={<LandingPage />} />
               <Route path="*" element={<NotFound />} />
             </Routes>

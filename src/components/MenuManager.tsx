@@ -118,7 +118,7 @@ export default function MenuManager({
   const queryClient = useQueryClient();
 
   // Fetch menus
-  const { data: menus, isLoading: menusLoading } = useQuery({
+  const { data: menusData, isLoading: menusLoading } = useQuery({
     queryKey: ["menus", searchTerm],
     queryFn: async () => {
       const params = new URLSearchParams();
@@ -554,7 +554,7 @@ export default function MenuManager({
       {/* Menu Display */}
       {viewMode === "grid" ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {menus?.map((menu: Menu) => (
+          {menusData?.menus?.map((menu: Menu) => (
             <Card key={menu.id} className="hover:shadow-lg transition-shadow">
               <CardHeader>
                 <div className="flex items-start justify-between">
@@ -640,7 +640,7 @@ export default function MenuManager({
         </div>
       ) : (
         <div className="space-y-4">
-          {menus?.map((menu: Menu) => (
+          {menusData?.menus?.map((menu: Menu) => (
             <Card key={menu.id} className="hover:shadow-lg transition-shadow">
               <CardContent className="p-6">
                 <div className="flex items-center justify-between">
@@ -723,7 +723,7 @@ export default function MenuManager({
         </div>
       )}
 
-      {menus?.length === 0 && (
+      {menusData?.menus?.length === 0 && (
         <div className="text-center py-12">
           <Menu className="h-12 w-12 text-gray-400 mx-auto mb-4" />
           <h3 className="text-lg font-medium text-gray-900 mb-2">
