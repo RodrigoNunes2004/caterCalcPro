@@ -515,6 +515,10 @@ export default function MenuManager({
                                   $
                                   {typeof recipe.costPerServing === "number"
                                     ? recipe.costPerServing.toFixed(2)
+                                    : typeof recipe.costPerServing === "string"
+                                    ? parseFloat(recipe.costPerServing).toFixed(
+                                        2
+                                      )
                                     : "0.00"}
                                 </span>
                               </span>
@@ -594,6 +598,8 @@ export default function MenuManager({
                         Total cost: $
                         {typeof menu.totalCost === "number"
                           ? menu.totalCost.toFixed(2)
+                          : typeof menu.totalCost === "string"
+                          ? parseFloat(menu.totalCost).toFixed(2)
                           : "0.00"}
                       </span>
                     </div>
@@ -677,6 +683,8 @@ export default function MenuManager({
                           Total cost: $
                           {typeof menu.totalCost === "number"
                             ? menu.totalCost.toFixed(2)
+                            : typeof menu.totalCost === "string"
+                            ? parseFloat(menu.totalCost).toFixed(2)
                             : "0.00"}
                         </span>
                       </div>
@@ -885,6 +893,8 @@ export default function MenuManager({
                                 $
                                 {typeof recipe.costPerServing === "number"
                                   ? recipe.costPerServing.toFixed(2)
+                                  : typeof recipe.costPerServing === "string"
+                                  ? parseFloat(recipe.costPerServing).toFixed(2)
                                   : "0.00"}
                               </span>
                             </span>
@@ -987,6 +997,8 @@ export default function MenuManager({
                       $
                       {typeof viewingMenu.totalCost === "number"
                         ? viewingMenu.totalCost.toFixed(2)
+                        : typeof viewingMenu.totalCost === "string"
+                        ? parseFloat(viewingMenu.totalCost).toFixed(2)
                         : "0.00"}
                     </div>
                     <p className="text-xs text-muted-foreground">Base cost</p>
@@ -1111,6 +1123,10 @@ export default function MenuManager({
                                   $
                                   {typeof recipe.costPerServing === "number"
                                     ? recipe.costPerServing.toFixed(2)
+                                    : typeof recipe.costPerServing === "string"
+                                    ? parseFloat(recipe.costPerServing).toFixed(
+                                        2
+                                      )
                                     : "0.00"}
                                   /serving
                                 </span>

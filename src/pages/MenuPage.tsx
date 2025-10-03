@@ -38,6 +38,7 @@ export default function MenusPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("all");
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
+  const [activeTab, setActiveTab] = useState("menus");
 
   const handleSearch = (value: string) => {
     setSearchTerm(value);
@@ -76,7 +77,7 @@ export default function MenusPage() {
           </p>
         </div>
 
-        <Tabs defaultValue="menus" className="w-full">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           <TabsList className="grid w-full grid-cols-2">
             <TabsTrigger value="menus">Menu Collection</TabsTrigger>
             <TabsTrigger value="builder">Menu Builder</TabsTrigger>
@@ -282,12 +283,7 @@ export default function MenusPage() {
                 <div className="mt-8 pt-6 border-t">
                   <div className="flex justify-center">
                     <Button
-                      onClick={() => {
-                        const element = document.querySelector(
-                          '[data-value="menus"]'
-                        ) as HTMLElement;
-                        element?.click();
-                      }}
+                      onClick={() => setActiveTab("menus")}
                       className="bg-orange-600 hover:bg-orange-700"
                     >
                       <Plus className="h-4 w-4 mr-2" />

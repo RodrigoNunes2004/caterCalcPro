@@ -72,7 +72,7 @@ export default function GuestScaler() {
   const queryClient = useQueryClient();
 
   // Fetch recipes for selection
-  const { data: recipes } = useQuery({
+  const { data: recipesData } = useQuery({
     queryKey: ["recipes"],
     queryFn: async () => {
       const response = await fetch("/api/recipes");
@@ -80,6 +80,8 @@ export default function GuestScaler() {
       return response.json();
     },
   });
+
+  const recipes = recipesData?.recipes || [];
 
   // Fetch and scale recipe
   const { data: recipeData, isLoading: isScaling } = useQuery({

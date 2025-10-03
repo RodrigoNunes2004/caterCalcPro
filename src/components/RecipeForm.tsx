@@ -113,6 +113,10 @@ export default function RecipeForm({
   const [ingredientQuantityInputs, setIngredientQuantityInputs] = useState<
     Record<number, string>
   >({});
+  const [ingredientCostInputs, setIngredientCostInputs] = useState<
+    Record<number, string>
+  >({});
+  const [newIngredientCostInput, setNewIngredientCostInput] = useState("");
 
   const [totalCost, setTotalCost] = useState(0);
   const [costPerServing, setCostPerServing] = useState(0);
@@ -121,14 +125,45 @@ export default function RecipeForm({
   const units = getAllUnits();
   const allUnits = [...units.volume, ...units.weight, ...units.count];
 
+  // Update form data when initialData changes (for editing)
+  useEffect(() => {
+    if (initialData) {
+      console.log("RecipeForm - Initializing with data:", {
+        ingredients: initialData.ingredients,
+      });
+
+      setFormData({
+        name: initialData.name || "",
+        description: initialData.description || "",
+        servings: initialData.servings || 4,
+        category: initialData.category || "main",
+        prepTime: initialData.prepTime || 30,
+        cookTime: initialData.cookTime || 0,
+        instructions: initialData.instructions || "",
+        ingredients: initialData.ingredients || [],
+        subRecipes: initialData.subRecipes || [],
+      });
+    }
+  }, [initialData]);
+
   // Initialize quantity inputs when form data changes
   useEffect(() => {
     if (initialData?.ingredients) {
-      const inputs: Record<number, string> = {};
+      const quantityInputs: Record<number, string> = {};
+      const costInputs: Record<number, string> = {};
       initialData.ingredients.forEach((ingredient, index) => {
-        inputs[index] = ingredient.quantity.toString();
+        quantityInputs[index] = ingredient.quantity.toString();
+        costInputs[index] =
+          ingredient.costPerUnit === 0 ? "" : ingredient.costPerUnit.toString();
+        console.log(`Initializing ingredient ${index}:`, {
+          name: ingredient.name,
+          costPerUnit: ingredient.costPerUnit,
+          costInput: costInputs[index],
+        });
       });
-      setIngredientQuantityInputs(inputs);
+      setIngredientQuantityInputs(quantityInputs);
+      setIngredientCostInputs(costInputs);
+      console.log("Set ingredientCostInputs:", costInputs);
     }
   }, [initialData]);
 
@@ -177,7 +212,7 @@ export default function RecipeForm({
     if (
       newIngredient.name &&
       newIngredient.quantity &&
-      newIngredient.costPerUnit
+      newIngredient.costPerUnit !== undefined
     ) {
       const ingredient: Ingredient = {
         ingredientId: `temp-${Date.now()}`,
@@ -200,6 +235,7 @@ export default function RecipeForm({
         costPerUnit: 0,
       });
       setQuantityInput("");
+      setNewIngredientCostInput("");
     }
   };
 
@@ -328,7 +364,7 @@ export default function RecipeForm({
                 <Input
                   id="servings"
                   type="number"
-                  value={formData.servings}
+                  value={formData.servings === 0 ? "" : formData.servings}
                   onChange={(e) =>
                     handleInputChange("servings", Number(e.target.value))
                   }
@@ -347,7 +383,7 @@ export default function RecipeForm({
                 <Input
                   id="prepTime"
                   type="number"
-                  value={formData.prepTime}
+                  value={formData.prepTime === 0 ? "" : formData.prepTime}
                   onChange={(e) =>
                     handleInputChange("prepTime", Number(e.target.value))
                   }
@@ -365,7 +401,7 @@ export default function RecipeForm({
                 <Input
                   id="cookTime"
                   type="number"
-                  value={formData.cookTime}
+                  value={formData.cookTime === 0 ? "" : formData.cookTime}
                   onChange={(e) =>
                     handleInputChange("cookTime", Number(e.target.value))
                   }
@@ -510,17 +546,20 @@ export default function RecipeForm({
                     </Label>
                     <Input
                       id="ingredient-cost"
-                      type="number"
-                      placeholder="0.00"
-                      value={newIngredient.costPerUnit || ""}
-                      onChange={(e) =>
+                      type="text"
+                      placeholder=""
+                      value={newIngredientCostInput}
+                      onChange={(e) => {
+                        const value = e.target.value;
+                        setNewIngredientCostInput(value);
+
+                        // Convert to number and update data
+                        const numValue = value === "" ? 0 : parseFloat(value);
                         setNewIngredient((prev) => ({
                           ...prev,
-                          costPerUnit: Number(e.target.value),
-                        }))
-                      }
-                      step="0.01"
-                      min="0"
+                          costPerUnit: isNaN(numValue) ? 0 : numValue,
+                        }));
+                      }}
                       className="mt-1"
                     />
                   </div>
@@ -553,7 +592,7 @@ export default function RecipeForm({
                     disabled={
                       !newIngredient.name ||
                       !newIngredient.quantity ||
-                      !newIngredient.costPerUnit
+                      newIngredient.costPerUnit === undefined
                     }
                     className="bg-orange-600 hover:bg-orange-700"
                   >
@@ -680,18 +719,25 @@ export default function RecipeForm({
                               Cost per Unit (NZD)
                             </Label>
                             <Input
-                              type="number"
-                              value={ingredient.costPerUnit}
-                              onChange={(e) =>
+                              type="text"
+                              value={ingredientCostInputs[index] ?? ""}
+                              onChange={(e) => {
+                                const value = e.target.value;
+                                setIngredientCostInputs((prev) => ({
+                                  ...prev,
+                                  [index]: value,
+                                }));
+
+                                // Convert to number and update data
+                                const numValue =
+                                  value === "" ? 0 : parseFloat(value);
                                 updateIngredient(
                                   index,
                                   "costPerUnit",
-                                  Number(e.target.value)
-                                )
-                              }
-                              step="0.01"
-                              min="0"
-                              placeholder="0.00"
+                                  isNaN(numValue) ? 0 : numValue
+                                );
+                              }}
+                              placeholder=""
                               className="mt-1"
                             />
                           </div>

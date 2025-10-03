@@ -289,14 +289,22 @@ export default function RecipeManager({ searchTerm }: RecipeManagerProps) {
           prepTime: Number(selectedRecipe.prepTime) || 0,
           cookTime: Number(selectedRecipe.cookTime) || 0,
           ingredients:
-            selectedRecipe.ingredients?.map((ri) => ({
-              ingredientId: String(ri.ingredient.id),
-              name: String(ri.ingredient.name),
-              quantity: Number(ri.quantity) || 0,
-              unit: String(ri.unit),
-              costPerUnit: Number(ri.ingredient.costPerUnit) || 0,
-              notes: String(ri.notes || ""),
-            })) || [],
+            selectedRecipe.ingredients?.map((ri) => {
+              console.log("Loading ingredient for edit:", {
+                name: ri.ingredient.name,
+                quantity: ri.quantity,
+                costPerUnit: ri.ingredient.costPerUnit,
+                costPerUnitNumber: Number(ri.ingredient.costPerUnit),
+              });
+              return {
+                ingredientId: String(ri.ingredient.id),
+                name: String(ri.ingredient.name),
+                quantity: Number(ri.quantity) || 0,
+                unit: String(ri.unit),
+                costPerUnit: Number(ri.ingredient.costPerUnit) || 0,
+                notes: String(ri.notes || ""),
+              };
+            }) || [],
           subRecipes:
             selectedRecipe.subRecipes?.map((sr) => ({
               subRecipeId: String(sr.subRecipe.id),

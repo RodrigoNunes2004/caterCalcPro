@@ -15,6 +15,7 @@ import EventsPage from "./pages/EventsPage";
 import InventoryPage from "./pages/InventoryPage";
 import PrepListPage from "./pages/PrepListPage";
 import UnitConverterPage from "./pages/UnitConverterPage";
+import GuestScalerPage from "./pages/GuestScalerPage";
 import LandingPage from "./pages/LandingPage";
 import NotFound from "./pages/NotFound";
 import "./index.css";
@@ -49,6 +50,7 @@ function App() {
               <Route path="/inventory" element={<InventoryPage />} />
               <Route path="/prep-list" element={<PrepListPage />} />
               <Route path="/unit-converter" element={<UnitConverterPage />} />
+              <Route path="/guest-scaler" element={<GuestScalerPage />} />
               <Route path="/landing" element={<LandingPage />} />
               <Route path="*" element={<NotFound />} />
             </Routes>
