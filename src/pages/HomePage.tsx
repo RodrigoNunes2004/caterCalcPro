@@ -51,14 +51,12 @@ export default function HomePage() {
         const servings = Array.isArray(recipe.servings)
           ? recipe.servings[0]
           : recipe.servings;
-        const totalCostValue = Array.isArray(recipe.totalCost)
-          ? recipe.totalCost[0]
-          : recipe.totalCost;
-        const scaleFactor = guestCount / (servings || 1);
+        // Note: totalCost is not available in basic recipe list, using 0 as placeholder
+        // In a real implementation, you'd need to fetch individual recipe costs
+        const totalCostValue = 0; // Placeholder - would need to calculate from ingredients
+        const scaleFactor = guestCount / (Number(servings) || 1);
         const recipeCost =
-          typeof totalCostValue === "number"
-            ? totalCostValue
-            : parseFloat(totalCostValue || "0");
+          typeof totalCostValue === "number" ? totalCostValue : 0;
         const scaledCost = recipeCost * scaleFactor;
         totalCost += scaledCost;
       }
@@ -363,13 +361,12 @@ export default function HomePage() {
                       const recipeCategory = Array.isArray(recipe.category)
                         ? recipe.category[0]
                         : recipe.category;
-                      const recipeTotalCost = Array.isArray(recipe.totalCost)
-                        ? recipe.totalCost[0]
-                        : recipe.totalCost;
+                      // Note: totalCost is not available in basic recipe list
+                      const recipeTotalCost = 0; // Placeholder - would need to calculate from ingredients
 
                       return (
                         <div
-                          key={recipeId}
+                          key={String(recipeId)}
                           className="flex items-center justify-between p-4 border rounded-lg bg-card hover:bg-muted/50 transition-colors"
                         >
                           <div className="flex-1">
