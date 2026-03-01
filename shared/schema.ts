@@ -11,9 +11,39 @@ import {
 import { createInsertSchema, createSelectSchema } from "drizzle-zod";
 import { z } from "zod";
 
+// Organizations table (multi-tenant: every catering business is one org)
+export const organizations = pgTable("organizations", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  name: text("name").notNull(),
+  plan: varchar("plan", { length: 20 }).default("trial"), // trial | pro | enterprise
+  trialEndsAt: timestamp("trial_ends_at"),
+  subscriptionStatus: varchar("subscription_status", {
+    length: 20,
+  }).default("trialing"), // trialing | active | cancelled
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+// Users table (belongs to organization)
+export const users = pgTable("users", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  name: text("name"),
+  email: text("email").notNull().unique(),
+  passwordHash: text("password_hash").notNull(),
+  role: varchar("role", { length: 20 }).notNull().default("owner"), // owner | manager | staff
+  organizationId: uuid("organization_id")
+    .references(() => organizations.id, { onDelete: "cascade" })
+    .notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
 // Recipes table
 export const recipes = pgTable("recipes", {
   id: uuid("id").defaultRandom().primaryKey(),
+  organizationId: uuid("organization_id")
+    .references(() => organizations.id, { onDelete: "cascade" })
+    .notNull(),
   name: text("name").notNull(),
   description: text("description"),
   servings: integer("servings").notNull().default(1),
@@ -29,7 +59,10 @@ export const recipes = pgTable("recipes", {
 // Ingredients table
 export const ingredients = pgTable("ingredients", {
   id: uuid("id").defaultRandom().primaryKey(),
-  name: text("name").notNull().unique(),
+  organizationId: uuid("organization_id")
+    .references(() => organizations.id, { onDelete: "cascade" })
+    .notNull(),
+  name: text("name").notNull(), // unique per org, not globally
   defaultUnit: varchar("default_unit", { length: 20 }).notNull(), // cups, grams, oz, etc.
   costPerUnit: decimal("cost_per_unit", { precision: 10, scale: 2 }).notNull(),
   category: varchar("category", { length: 50 }), // dairy, meat, vegetable, etc.
@@ -69,12 +102,16 @@ export const recipeSubRecipes = pgTable("recipe_sub_recipes", {
 // Events table for managing catering events
 export const events = pgTable("events", {
   id: uuid("id").defaultRandom().primaryKey(),
+  organizationId: uuid("organization_id")
+    .references(() => organizations.id, { onDelete: "cascade" })
+    .notNull(),
   name: text("name").notNull(),
   description: text("description"),
   eventType: varchar("event_type", { length: 50 }), // buffet, morning-tea, canapes, etc.
   eventDate: timestamp("event_date").notNull(),
   guestCount: integer("guest_count").notNull(),
   venue: text("venue"),
+  menuId: uuid("menu_id").references(() => menus.id, { onDelete: "set null" }), // optional menu associated with event
   budgetPercentage: decimal("budget_percentage", {
     precision: 5,
     scale: 2,
@@ -101,6 +138,9 @@ export const eventRecipes = pgTable("event_recipes", {
 // Menus table for managing menu collections
 export const menus = pgTable("menus", {
   id: uuid("id").defaultRandom().primaryKey(),
+  organizationId: uuid("organization_id")
+    .references(() => organizations.id, { onDelete: "cascade" })
+    .notNull(),
   name: text("name").notNull(),
   description: text("description"),
   category: varchar("category", { length: 50 }).notNull(), // corporate, wedding, casual, etc.
@@ -127,6 +167,11 @@ export const menuRecipes = pgTable("menu_recipes", {
 });
 
 // Zod schemas for validation
+export const insertOrganizationSchema = createInsertSchema(organizations);
+export const selectOrganizationSchema = createSelectSchema(organizations);
+export const insertUserSchema = createInsertSchema(users);
+export const selectUserSchema = createSelectSchema(users);
+
 export const insertRecipeSchema = createInsertSchema(recipes);
 export const selectRecipeSchema = createSelectSchema(recipes);
 export const updateRecipeSchema = insertRecipeSchema.partial();
@@ -158,6 +203,11 @@ export const insertMenuRecipeSchema = createInsertSchema(menuRecipes);
 export const selectMenuRecipeSchema = createSelectSchema(menuRecipes);
 
 // TypeScript types
+export type Organization = z.infer<typeof selectOrganizationSchema>;
+export type InsertOrganization = z.infer<typeof insertOrganizationSchema>;
+export type User = z.infer<typeof selectUserSchema>;
+export type InsertUser = z.infer<typeof insertUserSchema>;
+
 export type Recipe = z.infer<typeof selectRecipeSchema>;
 export type InsertRecipe = z.infer<typeof insertRecipeSchema>;
 export type UpdateRecipe = z.infer<typeof updateRecipeSchema>;

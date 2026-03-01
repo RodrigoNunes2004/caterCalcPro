@@ -1,25 +1,25 @@
 import { Router } from "express";
 import { storage } from "../storage";
+import { authMiddleware, type AuthRequest } from "../middleware/auth.js";
 import {
   insertIngredientSchema,
   updateIngredientSchema,
 } from "../../shared/schema";
 
 const router = Router();
+router.use(authMiddleware);
 
 // Get all ingredients with pagination and search
-router.get("/ingredients", async (req, res) => {
+router.get("/ingredients", async (req: AuthRequest, res) => {
   try {
+    const orgId = req.auth!.organizationId;
     const page = parseInt(req.query.page as string) || 1;
     const limit = parseInt(req.query.limit as string) || 50;
     const search = req.query.search as string;
     const category = req.query.category as string;
 
-    console.log(
-      `Fetching ingredients - page: ${page}, limit: ${limit}, search: ${search}, category: ${category}`
-    );
-
     const ingredients = await storage.getIngredients({
+      organizationId: orgId,
       page,
       limit,
       search,
@@ -34,12 +34,11 @@ router.get("/ingredients", async (req, res) => {
 });
 
 // Get single ingredient
-router.get("/ingredients/:id", async (req, res) => {
+router.get("/ingredients/:id", async (req: AuthRequest, res) => {
   try {
     const { id } = req.params;
-    console.log(`Fetching ingredient with ID: ${id}`);
-
-    const ingredient = await storage.getIngredient(id);
+    const orgId = req.auth!.organizationId;
+    const ingredient = await storage.getIngredient(id, orgId);
 
     if (!ingredient) {
       return res.status(404).json({ error: "Ingredient not found" });
@@ -53,11 +52,9 @@ router.get("/ingredients/:id", async (req, res) => {
 });
 
 // Create new ingredient
-router.post("/ingredients", async (req, res) => {
+router.post("/ingredients", async (req: AuthRequest, res) => {
   try {
-    console.log("Creating new ingredient:", req.body);
-
-    // Preprocess the data to handle type conversions
+    const orgId = req.auth!.organizationId;
     const processedData = {
       ...req.body,
       costPerUnit: req.body.costPerUnit
@@ -66,7 +63,10 @@ router.post("/ingredients", async (req, res) => {
     };
 
     const ingredientData = insertIngredientSchema.parse(processedData);
-    const newIngredient = await storage.createIngredient(ingredientData);
+    const newIngredient = await storage.createIngredient({
+      ...ingredientData,
+      organizationId: orgId,
+    });
 
     console.log("Created ingredient:", newIngredient);
     res.status(201).json(newIngredient);
@@ -77,13 +77,12 @@ router.post("/ingredients", async (req, res) => {
 });
 
 // Update ingredient
-router.put("/ingredients/:id", async (req, res) => {
+router.put("/ingredients/:id", async (req: AuthRequest, res) => {
   try {
     const { id } = req.params;
-    console.log(`Updating ingredient ${id}:`, req.body);
-
+    const orgId = req.auth!.organizationId;
     const updateData = updateIngredientSchema.parse(req.body);
-    const updatedIngredient = await storage.updateIngredient(id, updateData);
+    const updatedIngredient = await storage.updateIngredient(id, orgId, updateData);
 
     if (!updatedIngredient) {
       return res.status(404).json({ error: "Ingredient not found" });
@@ -98,12 +97,11 @@ router.put("/ingredients/:id", async (req, res) => {
 });
 
 // Delete ingredient
-router.delete("/ingredients/:id", async (req, res) => {
+router.delete("/ingredients/:id", async (req: AuthRequest, res) => {
   try {
     const { id } = req.params;
-    console.log(`Deleting ingredient with ID: ${id}`);
-
-    const success = await storage.deleteIngredient(id);
+    const orgId = req.auth!.organizationId;
+    const success = await storage.deleteIngredient(id, orgId);
 
     if (!success) {
       return res.status(404).json({ error: "Ingredient not found" });
@@ -118,14 +116,13 @@ router.delete("/ingredients/:id", async (req, res) => {
 });
 
 // Search ingredients by name (for autocomplete)
-router.get("/ingredients/search/:query", async (req, res) => {
+router.get("/ingredients/search/:query", async (req: AuthRequest, res) => {
   try {
     const { query } = req.params;
+    const orgId = req.auth!.organizationId;
     const limit = parseInt(req.query.limit as string) || 10;
 
-    console.log(`Searching ingredients with query: ${query}, limit: ${limit}`);
-
-    const ingredients = await storage.searchIngredients(query, limit);
+    const ingredients = await storage.searchIngredients(query, orgId, limit);
 
     res.json(ingredients);
   } catch (error) {
@@ -135,11 +132,10 @@ router.get("/ingredients/search/:query", async (req, res) => {
 });
 
 // Get ingredient categories
-router.get("/ingredients/categories/list", async (req, res) => {
+router.get("/ingredients/categories/list", async (req: AuthRequest, res) => {
   try {
-    console.log("Fetching ingredient categories");
-
-    const categories = await storage.getIngredientCategories();
+    const orgId = req.auth!.organizationId;
+    const categories = await storage.getIngredientCategories(orgId);
 
     res.json(categories);
   } catch (error) {
@@ -149,11 +145,10 @@ router.get("/ingredients/categories/list", async (req, res) => {
 });
 
 // Bulk create ingredients
-router.post("/ingredients/bulk", async (req, res) => {
+router.post("/ingredients/bulk", async (req: AuthRequest, res) => {
   try {
+    const orgId = req.auth!.organizationId;
     const { ingredients } = req.body;
-
-    console.log(`Bulk creating ${ingredients.length} ingredients`);
 
     if (!Array.isArray(ingredients) || ingredients.length === 0) {
       return res
@@ -161,9 +156,8 @@ router.post("/ingredients/bulk", async (req, res) => {
         .json({ error: "Ingredients array is required and must not be empty" });
     }
 
-    // Validate all ingredients
-    const validatedIngredients = ingredients.map((ingredient) =>
-      insertIngredientSchema.parse(ingredient)
+    const validatedIngredients = (ingredients as any[]).map((ingredient: any) =>
+      insertIngredientSchema.parse({ ...ingredient, organizationId: orgId })
     );
 
     const createdIngredients = await storage.bulkCreateIngredients(

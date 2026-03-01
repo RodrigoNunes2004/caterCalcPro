@@ -1,15 +1,18 @@
+import "dotenv/config";
 import express from "express";
 import cors from "cors";
+import cookieParser from "cookie-parser";
 import { createServer } from "http";
 import { registerRoutes } from "./routes/index.js";
 import { setupVite, serveStatic, log } from "./vite.js";
-import { storage } from "./storage.js";
+import { initStorage } from "./storage.js";
 
 const app = express();
 const server = createServer(app);
 
 // Middleware
-app.use(cors());
+app.use(cors({ origin: true, credentials: true }));
+app.use(cookieParser());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
@@ -36,14 +39,29 @@ app.use((err: any, req: any, res: any, next: any) => {
   res.status(500).json({ error: "Internal server error" });
 });
 
-// Start server
-const PORT = process.env.PORT || 3000;
-const HOST = process.env.HOST || "0.0.0.0";
+const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
+const HOST = process.env.HOST ?? "0.0.0.0";
+const NODE_ENV = process.env.NODE_ENV ?? "development";
 
-server.listen(PORT, HOST, () => {
-  log(`Server running on http://${HOST}:${PORT}`);
-  log(`Environment: ${process.env.NODE_ENV || "development"}`);
-});
+if (NODE_ENV === "production" && !process.env.PORT) {
+  log("PORT environment variable is required in production", "error");
+  process.exit(1);
+}
+
+(async () => {
+  try {
+    await initStorage();
+    log("Storage initialized");
+  } catch (err) {
+    log("Storage init failed (run 'pnpm drizzle-kit push' for Neon/PostgreSQL)", "error");
+    console.error(err);
+  }
+
+  server.listen(PORT, HOST, () => {
+    log(`Server running on http://${HOST}:${PORT}`);
+    log(`Environment: ${NODE_ENV}`);
+  });
+})();
 
 // Graceful shutdown
 process.on("SIGTERM", () => {

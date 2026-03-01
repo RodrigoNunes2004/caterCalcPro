@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { storage, db } from "../storage";
+import { authMiddleware, type AuthRequest } from "../middleware/auth.js";
 import {
   recipes,
   ingredients,
@@ -14,9 +15,11 @@ import {
 import { eq, desc } from "drizzle-orm";
 
 const router = Router();
+router.use(authMiddleware);
 
 // Get all recipes with pagination and search
-router.get("/recipes", async (req, res) => {
+router.get("/recipes", async (req: AuthRequest, res) => {
+  const orgId = req.auth!.organizationId;
   try {
     const page = parseInt(req.query.page as string) || 1;
     const limit = parseInt(req.query.limit as string) || 20;
@@ -28,6 +31,7 @@ router.get("/recipes", async (req, res) => {
     );
 
     const allRecipes = await storage.getRecipes({
+      organizationId: orgId,
       page,
       limit,
       search,
@@ -42,12 +46,13 @@ router.get("/recipes", async (req, res) => {
 });
 
 // Get single recipe with ingredients and sub-recipes
-router.get("/recipes/:id", async (req, res) => {
+router.get("/recipes/:id", async (req: AuthRequest, res) => {
   try {
     const { id } = req.params;
+    const orgId = req.auth!.organizationId;
     console.log(`Fetching recipe with ID: ${id}`);
 
-    const recipe = await storage.getRecipeWithIngredients(id);
+    const recipe = await storage.getRecipeWithIngredients(id, orgId);
 
     if (!recipe) {
       return res.status(404).json({ error: "Recipe not found" });
@@ -61,8 +66,9 @@ router.get("/recipes/:id", async (req, res) => {
 });
 
 // Create new recipe
-router.post("/recipes", async (req, res) => {
+router.post("/recipes", async (req: AuthRequest, res) => {
   try {
+    const orgId = req.auth!.organizationId;
     console.log("Creating new recipe:", req.body);
 
     const {
@@ -71,11 +77,11 @@ router.post("/recipes", async (req, res) => {
       ...recipeData
     } = req.body;
 
-    // Validate recipe data (without ingredients/subRecipes)
     const validatedRecipeData = insertRecipeSchema.parse(recipeData);
-
-    // Create the recipe first
-    const newRecipe = await storage.createRecipe(validatedRecipeData);
+    const newRecipe = await storage.createRecipe({
+      ...validatedRecipeData,
+      organizationId: orgId,
+    });
 
     // Create ingredients and link them to the recipe
     if (formIngredients && formIngredients.length > 0) {
@@ -86,6 +92,7 @@ router.post("/recipes", async (req, res) => {
           // Try to find existing ingredient by name
           const existingIngredients = await storage.searchIngredients(
             ingredient.name,
+            orgId,
             1
           );
           if (existingIngredients.length > 0) {
@@ -96,17 +103,18 @@ router.post("/recipes", async (req, res) => {
               name: ingredient.name,
               defaultUnit: ingredient.unit,
               costPerUnit: ingredient.costPerUnit.toString(),
-              category: "other", // Default category
+              category: "other",
+              organizationId: orgId,
             });
           }
         } catch (error) {
           console.error("Error creating ingredient:", error);
-          // Create new ingredient with fallback
           ingredientRecord = await storage.createIngredient({
             name: ingredient.name,
             defaultUnit: ingredient.unit,
             costPerUnit: ingredient.costPerUnit.toString(),
             category: "other",
+            organizationId: orgId,
           });
         }
 
@@ -130,13 +138,12 @@ router.post("/recipes", async (req, res) => {
 });
 
 // Update recipe
-router.put("/recipes/:id", async (req, res) => {
+router.put("/recipes/:id", async (req: AuthRequest, res) => {
   try {
     const { id } = req.params;
-    console.log(`Updating recipe ${id}:`, req.body);
-
+    const orgId = req.auth!.organizationId;
     const updateData = updateRecipeSchema.parse(req.body);
-    const updatedRecipe = await storage.updateRecipe(id, updateData);
+    const updatedRecipe = await storage.updateRecipe(id, orgId, updateData);
 
     if (!updatedRecipe) {
       return res.status(404).json({ error: "Recipe not found" });
@@ -151,12 +158,11 @@ router.put("/recipes/:id", async (req, res) => {
 });
 
 // Delete recipe
-router.delete("/recipes/:id", async (req, res) => {
+router.delete("/recipes/:id", async (req: AuthRequest, res) => {
   try {
     const { id } = req.params;
-    console.log(`Deleting recipe with ID: ${id}`);
-
-    const success = await storage.deleteRecipe(id);
+    const orgId = req.auth!.organizationId;
+    const success = await storage.deleteRecipe(id, orgId);
 
     if (!success) {
       return res.status(404).json({ error: "Recipe not found" });
@@ -171,7 +177,7 @@ router.delete("/recipes/:id", async (req, res) => {
 });
 
 // Add ingredient to recipe
-router.post("/recipes/:id/ingredients", async (req, res) => {
+router.post("/recipes/:id/ingredients", async (req: AuthRequest, res) => {
   try {
     const { id } = req.params;
     console.log(`Adding ingredient to recipe ${id}:`, req.body);
@@ -194,7 +200,7 @@ router.post("/recipes/:id/ingredients", async (req, res) => {
 // Remove ingredient from recipe
 router.delete(
   "/recipes/:recipeId/ingredients/:ingredientId",
-  async (req, res) => {
+  async (req: AuthRequest, res) => {
     try {
       const { recipeId, ingredientId } = req.params;
       console.log(
@@ -224,7 +230,7 @@ router.delete(
 );
 
 // Add sub-recipe to recipe
-router.post("/recipes/:id/sub-recipes", async (req, res) => {
+router.post("/recipes/:id/sub-recipes", async (req: AuthRequest, res) => {
   try {
     const { id } = req.params;
     console.log(`Adding sub-recipe to recipe ${id}:`, req.body);
@@ -245,16 +251,14 @@ router.post("/recipes/:id/sub-recipes", async (req, res) => {
 });
 
 // Calculate recipe cost and scaling
-router.post("/recipes/:id/calculate", async (req, res) => {
+router.post("/recipes/:id/calculate", async (req: AuthRequest, res) => {
   try {
     const { id } = req.params;
+    const orgId = req.auth!.organizationId;
     const { guestCount, targetServings } = req.body;
 
-    console.log(
-      `Calculating costs for recipe ${id}, guests: ${guestCount}, servings: ${targetServings}`
-    );
-
     const calculation = await storage.calculateRecipeCosts(id, {
+      organizationId: orgId,
       guestCount: guestCount || null,
       targetServings: targetServings || null,
     });
@@ -268,7 +272,7 @@ router.post("/recipes/:id/calculate", async (req, res) => {
 });
 
 // Generate shopping list for multiple recipes
-router.post("/recipes/shopping-list", async (req, res) => {
+router.post("/recipes/shopping-list", async (req: AuthRequest, res) => {
   try {
     const { recipes: recipeList, guestCount } = req.body;
 
@@ -296,7 +300,7 @@ router.post("/recipes/shopping-list", async (req, res) => {
 });
 
 // Scale recipe proportionally (when one ingredient is modified)
-router.post("/recipes/:id/adjust-proportions", async (req, res) => {
+router.post("/recipes/:id/adjust-proportions", async (req: AuthRequest, res) => {
   try {
     const { id } = req.params;
     const { modifiedIngredientId, newQuantity } = req.body;
@@ -320,7 +324,7 @@ router.post("/recipes/:id/adjust-proportions", async (req, res) => {
 });
 
 // Get recipe nutrition info and percentages
-router.get("/recipes/:id/nutrition", async (req, res) => {
+router.get("/recipes/:id/nutrition", async (req: AuthRequest, res) => {
   try {
     const { id } = req.params;
     console.log(`Fetching nutrition info for recipe ${id}`);

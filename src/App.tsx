@@ -8,6 +8,8 @@ import {
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
 import { ThemeProvider } from "next-themes";
+import { AuthProvider } from "./contexts/AuthContext";
+import { ProtectedRoute } from "./components/ProtectedRoute";
 import HomePage from "./pages/HomePage";
 import RecipesPage from "./pages/RecipesPage";
 import MenuPage from "./pages/MenuPage";
@@ -17,6 +19,8 @@ import PrepListPage from "./pages/PrepListPage";
 import UnitConverterPage from "./pages/UnitConverterPage";
 import GuestScalerPage from "./pages/GuestScalerPage";
 import LandingPage from "./pages/LandingPage";
+import LoginPage from "./pages/LoginPage";
+import RegisterPage from "./pages/RegisterPage";
 import NotFound from "./pages/NotFound";
 import "./index.css";
 
@@ -31,32 +35,89 @@ function App() {
         enableSystem
         disableTransitionOnChange={false}
         storageKey="catercalc-theme"
-        onStorageChange={(theme) => {
-          console.log("Theme storage changed:", theme);
-        }}
       >
-        <Router
-          future={{
-            v7_startTransition: true,
-            v7_relativeSplatPath: true,
-          }}
-        >
-          <div className="min-h-screen bg-background" suppressHydrationWarning>
-            <Routes>
-              <Route path="/" element={<HomePage />} />
-              <Route path="/recipes" element={<RecipesPage />} />
-              <Route path="/menus" element={<MenuPage />} />
-              <Route path="/events" element={<EventsPage />} />
-              <Route path="/inventory" element={<InventoryPage />} />
-              <Route path="/prep-list" element={<PrepListPage />} />
-              <Route path="/unit-converter" element={<UnitConverterPage />} />
-              <Route path="/guest-scaler" element={<GuestScalerPage />} />
-              <Route path="/landing" element={<LandingPage />} />
-              <Route path="*" element={<NotFound />} />
-            </Routes>
-          </div>
-          <ReactQueryDevtools initialIsOpen={false} />
-        </Router>
+        <AuthProvider>
+          <Router
+            future={{
+              v7_startTransition: true,
+              v7_relativeSplatPath: true,
+            }}
+          >
+            <div className="min-h-screen bg-background" suppressHydrationWarning>
+              <Routes>
+                <Route path="/landing" element={<LandingPage />} />
+                <Route path="/login" element={<LoginPage />} />
+                <Route path="/register" element={<RegisterPage />} />
+                <Route
+                  path="/"
+                  element={
+                    <ProtectedRoute>
+                      <HomePage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/recipes"
+                  element={
+                    <ProtectedRoute>
+                      <RecipesPage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/menus"
+                  element={
+                    <ProtectedRoute>
+                      <MenuPage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/events"
+                  element={
+                    <ProtectedRoute>
+                      <EventsPage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/inventory"
+                  element={
+                    <ProtectedRoute>
+                      <InventoryPage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/prep-list"
+                  element={
+                    <ProtectedRoute>
+                      <PrepListPage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/unit-converter"
+                  element={
+                    <ProtectedRoute>
+                      <UnitConverterPage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/guest-scaler"
+                  element={
+                    <ProtectedRoute>
+                      <GuestScalerPage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route path="*" element={<NotFound />} />
+              </Routes>
+            </div>
+            <ReactQueryDevtools initialIsOpen={false} />
+          </Router>
+        </AuthProvider>
       </ThemeProvider>
     </QueryClientProvider>
   );

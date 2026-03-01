@@ -26,10 +26,11 @@ import { Badge } from "@/components/ui/badge";
 import Navigation from "@/components/Navigator";
 import { useRecipes, useDeleteRecipe } from "@/hooks/useRecipes";
 import { useQuery } from "@tanstack/react-query";
+import { DEFAULT_GUEST_COUNT } from "@/lib/constants";
 
 export default function HomePage() {
   const navigate = useNavigate();
-  const [guestCount, setGuestCount] = useState<number>(50);
+  const [guestCount, setGuestCount] = useState<number>(DEFAULT_GUEST_COUNT);
   const [hiddenRecipes, setHiddenRecipes] = useState<Set<string>>(new Set());
 
   // Fetch recent recipes (limit to 3 most recent)
@@ -107,23 +108,22 @@ export default function HomePage() {
       return !hiddenRecipes.has(recipeId as string);
     }) || [];
 
-  // Mock data for upcoming events (keeping this for now)
-  const upcomingEvents = [
-    {
-      id: 1,
-      name: "Corporate Lunch",
-      date: "2024-01-15",
-      guests: 75,
-      status: "confirmed",
+  // Fetch real upcoming events from API
+  const { data: eventsData } = useQuery({
+    queryKey: ["events", "upcoming"],
+    queryFn: async () => {
+      const res = await fetch("/api/events?limit=3");
+      if (!res.ok) throw new Error("Failed to fetch events");
+      return res.json();
     },
-    {
-      id: 2,
-      name: "Wedding Reception",
-      date: "2024-01-20",
-      guests: 150,
-      status: "planning",
-    },
-  ];
+  });
+  const upcomingEvents = (eventsData?.events || []).map((e: any) => ({
+    id: e.id,
+    name: e.name,
+    date: e.eventDate?.split("T")[0] || "",
+    guests: e.guestCount,
+    status: e.status || "planning",
+  }));
 
   return (
     <div className="min-h-screen bg-background">

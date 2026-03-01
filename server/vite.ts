@@ -24,12 +24,13 @@ export function log(message: string, source = "express") {
 }
 
 export async function setupVite(app: Express, server: Server) {
+  const port = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
   const serverOptions = {
     middlewareMode: true,
     hmr: {
       server,
-      port: 3000,
-      host: "localhost",
+      port,
+      host: process.env.HOST ?? "localhost",
     },
     allowedHosts: true as const,
   };

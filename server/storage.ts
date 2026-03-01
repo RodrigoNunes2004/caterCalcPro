@@ -5,6 +5,7 @@ import { PGlite } from "@electric-sql/pglite";
 import { eq, like, ilike, desc, asc, and, or, count } from "drizzle-orm";
 import { randomUUID } from "crypto";
 import * as schema from "../shared/schema";
+import { ensureAuthTables, ensureOrganizationIdColumns } from "./lib/ensureAuthTables.js";
 import {
   recipes,
   ingredients,
@@ -14,6 +15,7 @@ import {
   eventRecipes,
   menus,
   menuRecipes,
+  organizations,
   type Recipe,
   type Ingredient,
   type Event,
@@ -33,6 +35,8 @@ import {
 
 // For development, we'll use PGLite (WASM Postgres)
 // For production, this will connect to PostgreSQL via DATABASE_URL
+let pgliteClient: PGlite | null = null;
+
 export function createDrizzleDb() {
   if (process.env.DATABASE_URL) {
     // Production: Use PostgreSQL via Neon
@@ -44,14 +48,17 @@ export function createDrizzleDb() {
     console.log(
       "No DATABASE_URL found, using PGLite (WASM Postgres) for development"
     );
-
-    // Use in-memory PGLite for development
-    const client = new PGlite("./dev.db");
-    return drizzlePGLite(client, { schema });
+    pgliteClient = new PGlite("./dev.db");
+    return drizzlePGLite(pgliteClient, { schema });
   }
 }
 
 export const db = createDrizzleDb();
+
+/** Get PGLite client for raw SQL (development only). Used for migrations. */
+export function getPgliteClient(): PGlite | null {
+  return pgliteClient;
+}
 
 // Utility functions for data validation and generation
 function isValidUUID(uuid: string): boolean {
@@ -107,15 +114,32 @@ async function initializeSampleData(retryCount = 0, maxRetries = 3) {
       })`
     );
 
-    // Check if we have any events
+    let devOrg: { id: string } | undefined;
+    try {
+      [devOrg] = await db.select().from(organizations).where(eq(organizations.name, "Development")).limit(1);
+    } catch (err: any) {
+      if (err?.message?.includes("organizations") || err?.message?.includes("does not exist")) {
+        console.log("Auth tables not migrated yet. Run 'pnpm drizzle-kit push' for Neon/PostgreSQL.");
+        return;
+      }
+      throw err;
+    }
+    if (!devOrg) {
+      console.log("No Development org found, skipping sample data");
+      return;
+    }
+    const orgId = devOrg.id;
+
     const existingEvents = await db.select().from(events).limit(1);
+    const existingMenus = await db.select().from(menus).limit(1);
+    const existingRecipes = await db.select().from(recipes).limit(2);
 
     if (existingEvents.length === 0) {
-      console.log("No existing events found, creating sample data...");
+      console.log("No existing events found, creating sample events...");
 
-      // Define sample events with proper validation
       const sampleEventsData = [
         {
+          organizationId: orgId,
           name: "Corporate Lunch Meeting",
           description: "Business lunch for 50 executives",
           eventDate: "2024-02-15",
@@ -126,6 +150,7 @@ async function initializeSampleData(retryCount = 0, maxRetries = 3) {
           notes: "Dietary restrictions: 3 vegetarians, 1 gluten-free",
         },
         {
+          organizationId: orgId,
           name: "Wedding Reception",
           description: "Elegant wedding dinner for 120 guests",
           eventDate: "2024-03-20",
@@ -137,10 +162,9 @@ async function initializeSampleData(retryCount = 0, maxRetries = 3) {
         },
       ];
 
-      // Validate and insert each event
       for (const eventData of sampleEventsData) {
         try {
-          const validatedEvent = validateEventData(eventData);
+          const validatedEvent = { ...validateEventData(eventData), organizationId: orgId };
           console.log(`Creating event: ${validatedEvent.name}`);
           await db.insert(events).values(validatedEvent);
           console.log(`✓ Event '${validatedEvent.name}' created successfully`);
@@ -153,9 +177,39 @@ async function initializeSampleData(retryCount = 0, maxRetries = 3) {
         }
       }
 
-      console.log("Sample data initialization completed");
+      console.log("Sample events created");
     } else {
-      console.log("Sample data already exists, skipping initialization");
+      console.log("Sample events already exist");
+    }
+
+    if (existingMenus.length === 0 && existingRecipes.length >= 2) {
+      console.log("Creating sample menus...");
+      try {
+        const [r1, r2] = existingRecipes;
+        const menuResult = await db
+          .insert(menus)
+          .values({
+            organizationId: orgId,
+            name: "Corporate Buffet",
+            description: "Classic buffet for business events",
+            category: "buffet",
+            isActive: true,
+            totalCost: "0",
+            totalRecipes: 2,
+            avgPrepTime: 20,
+          } as any)
+          .returning();
+        const menuId = menuResult[0]?.id;
+        if (menuId) {
+          await db.insert(menuRecipes).values([
+            { menuId, recipeId: r1.id, order: 0 },
+            { menuId, recipeId: r2.id, order: 1 },
+          ]);
+          console.log("Sample menu 'Corporate Buffet' created");
+        }
+      } catch (menuError) {
+        console.error("Failed to create sample menu:", menuError);
+      }
     }
   } catch (error) {
     console.error(
@@ -189,31 +243,105 @@ async function safeInitializeSampleData() {
   }
 }
 
-// Initialize sample data asynchronously (non-blocking)
-safeInitializeSampleData();
+// Ensure menus table exists (run migration for PGLite when 0001 not applied)
+async function ensureMenusTable() {
+  if (process.env.DATABASE_URL) return; // Neon: use drizzle-kit migrate
+  const client = getPgliteClient();
+  if (!client) return;
+
+  try {
+    await db.select().from(menus).limit(1);
+  } catch (err: any) {
+    if (err?.message?.includes('relation "menus" does not exist')) {
+      console.log("Running menus migration...");
+      const migrationSql = `
+        CREATE TABLE IF NOT EXISTS "menus" (
+          "id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+          "name" text NOT NULL,
+          "description" text,
+          "category" varchar(50) NOT NULL,
+          "is_active" boolean DEFAULT true,
+          "total_cost" numeric(10, 2) DEFAULT '0',
+          "total_recipes" integer DEFAULT 0,
+          "avg_prep_time" integer DEFAULT 0,
+          "created_at" timestamp DEFAULT now() NOT NULL,
+          "updated_at" timestamp DEFAULT now() NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS "menu_recipes" (
+          "id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+          "menu_id" uuid NOT NULL,
+          "recipe_id" uuid NOT NULL,
+          "order" integer DEFAULT 0,
+          "notes" text,
+          "created_at" timestamp DEFAULT now() NOT NULL
+        );
+        DO $$ BEGIN
+          ALTER TABLE "menu_recipes" ADD CONSTRAINT "menu_recipes_menu_id_menus_id_fk" FOREIGN KEY ("menu_id") REFERENCES "public"."menus"("id") ON DELETE cascade ON UPDATE no action;
+        EXCEPTION WHEN duplicate_object THEN NULL;
+        END $$;
+        DO $$ BEGIN
+          ALTER TABLE "menu_recipes" ADD CONSTRAINT "menu_recipes_recipe_id_recipes_id_fk" FOREIGN KEY ("recipe_id") REFERENCES "public"."recipes"("id") ON DELETE cascade ON UPDATE no action;
+        EXCEPTION WHEN duplicate_object THEN NULL;
+        END $$;
+      `;
+      await client.exec(migrationSql);
+      console.log("Menus migration completed");
+    }
+  }
+
+  // Add menu_id column to events if missing (for event-menu association)
+  try {
+    await client.exec(`
+      DO $$ BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_schema = 'public' AND table_name = 'events' AND column_name = 'menu_id'
+        ) THEN
+          ALTER TABLE "events" ADD COLUMN "menu_id" uuid REFERENCES "menus"("id") ON DELETE SET NULL;
+        END IF;
+      END $$;
+    `);
+  } catch (_err) {
+    // Ignore - column may already exist
+  }
+}
+
+// Run schema sync then sample data
+export async function initStorage(): Promise<void> {
+  await ensureAuthTables();
+  await ensureMenusTable();
+  await ensureOrganizationIdColumns();
+  await safeInitializeSampleData();
+}
+
+(async () => {
+  await initStorage();
+})();
+
 
 // Storage service layer
 export const storage = {
-  // Recipe operations
+  // Recipe operations (organizationId required for multi-tenant isolation)
   async getRecipes(
     options: {
+      organizationId: string;
       page?: number;
       limit?: number;
       search?: string;
       category?: string;
-    } = {}
+    }
   ) {
-    const { page = 1, limit = 50, search, category } = options;
+    const { organizationId, page = 1, limit = 50, search, category } = options;
     const offset = (page - 1) * limit;
 
-    const conditions = [];
+    const conditions = [eq(recipes.organizationId, organizationId)];
 
     if (search) {
       conditions.push(
         or(
           ilike(recipes.name, `%${search}%`),
           ilike(recipes.description, `%${search}%`)
-        )
+        )!
       );
     }
 
@@ -221,7 +349,7 @@ export const storage = {
       conditions.push(eq(recipes.category, category));
     }
 
-    const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+    const whereClause = and(...conditions);
 
     const recipesResult = await db
       .select()
@@ -246,11 +374,11 @@ export const storage = {
     };
   },
 
-  async getRecipe(id: string): Promise<any> {
+  async getRecipe(id: string, organizationId: string): Promise<any> {
     const recipe = await db
       .select()
       .from(recipes)
-      .where(eq(recipes.id, id))
+      .where(and(eq(recipes.id, id), eq(recipes.organizationId, organizationId)))
       .limit(1);
     if (recipe.length === 0) return null;
 
@@ -289,7 +417,7 @@ export const storage = {
     };
   },
 
-  async createRecipe(data: InsertRecipe): Promise<any> {
+  async createRecipe(data: InsertRecipe & { organizationId: string }): Promise<any> {
     const result = await db
       .insert(recipes)
       .values(data as any)
@@ -297,33 +425,34 @@ export const storage = {
     return result[0];
   },
 
-  async updateRecipe(id: string, data: UpdateRecipe): Promise<any> {
+  async updateRecipe(id: string, organizationId: string, data: UpdateRecipe): Promise<any> {
     const result = await db
       .update(recipes)
       .set(data)
-      .where(eq(recipes.id, id))
+      .where(and(eq(recipes.id, id), eq(recipes.organizationId, organizationId)))
       .returning();
     return result[0] || null;
   },
 
-  async deleteRecipe(id: string): Promise<boolean> {
-    const result = await db.delete(recipes).where(eq(recipes.id, id));
+  async deleteRecipe(id: string, organizationId: string): Promise<boolean> {
+    const result = await db.delete(recipes).where(and(eq(recipes.id, id), eq(recipes.organizationId, organizationId)));
     return (result as any).rowCount > 0;
   },
 
   // Ingredient operations
   async getIngredients(
     options: {
+      organizationId: string;
       page?: number;
       limit?: number;
       search?: string;
       category?: string;
-    } = {}
+    }
   ) {
-    const { page = 1, limit = 50, search, category } = options;
+    const { organizationId, page = 1, limit = 50, search, category } = options;
     const offset = (page - 1) * limit;
 
-    const conditions = [];
+    const conditions = [eq(ingredients.organizationId, organizationId)];
 
     if (search) {
       conditions.push(ilike(ingredients.name, `%${search}%`));
@@ -333,7 +462,7 @@ export const storage = {
       conditions.push(eq(ingredients.category, category));
     }
 
-    const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+    const whereClause = and(...conditions);
 
     const ingredientsResult = await db
       .select()
@@ -358,16 +487,16 @@ export const storage = {
     };
   },
 
-  async getIngredient(id: string): Promise<any> {
+  async getIngredient(id: string, organizationId: string): Promise<any> {
     const [ingredient] = await db
       .select()
       .from(ingredients)
-      .where(eq(ingredients.id, id))
+      .where(and(eq(ingredients.id, id), eq(ingredients.organizationId, organizationId)))
       .limit(1);
     return ingredient || null;
   },
 
-  async createIngredient(data: InsertIngredient): Promise<any> {
+  async createIngredient(data: InsertIngredient & { organizationId: string }): Promise<any> {
     const result = await db
       .insert(ingredients)
       .values(data as any)
@@ -375,40 +504,40 @@ export const storage = {
     return result[0];
   },
 
-  async updateIngredient(id: string, data: UpdateIngredient): Promise<any> {
+  async updateIngredient(id: string, organizationId: string, data: UpdateIngredient): Promise<any> {
     const result = await db
       .update(ingredients)
       .set(data)
-      .where(eq(ingredients.id, id))
+      .where(and(eq(ingredients.id, id), eq(ingredients.organizationId, organizationId)))
       .returning();
     return result[0] || null;
   },
 
-  async deleteIngredient(id: string): Promise<boolean> {
-    const result = await db.delete(ingredients).where(eq(ingredients.id, id));
+  async deleteIngredient(id: string, organizationId: string): Promise<boolean> {
+    const result = await db.delete(ingredients).where(and(eq(ingredients.id, id), eq(ingredients.organizationId, organizationId)));
     return (result as any).rowCount > 0;
   },
 
-  async searchIngredients(query: string, limit: number = 10): Promise<any[]> {
+  async searchIngredients(query: string, organizationId: string, limit: number = 10): Promise<any[]> {
     return await db
       .select()
       .from(ingredients)
-      .where(ilike(ingredients.name, `%${query}%`))
+      .where(and(eq(ingredients.organizationId, organizationId), ilike(ingredients.name, `%${query}%`)))
       .orderBy(asc(ingredients.name))
       .limit(limit);
   },
 
-  async getIngredientCategories(): Promise<string[]> {
+  async getIngredientCategories(organizationId: string): Promise<string[]> {
     const result = await db
       .selectDistinct({ category: ingredients.category })
       .from(ingredients)
-      .where(eq(ingredients.category, ingredients.category))
+      .where(eq(ingredients.organizationId, organizationId))
       .orderBy(asc(ingredients.category));
 
     return result.map((r) => r.category).filter(Boolean) as string[];
   },
 
-  async bulkCreateIngredients(data: InsertIngredient[]): Promise<any[]> {
+  async bulkCreateIngredients(data: (InsertIngredient & { organizationId: string })[]): Promise<any[]> {
     const result = await db
       .insert(ingredients)
       .values(data as any)
@@ -419,16 +548,17 @@ export const storage = {
   // Event operations
   async getEvents(
     options: {
+      organizationId: string;
       page?: number;
       limit?: number;
       search?: string;
       status?: string;
-    } = {}
+    }
   ) {
-    const { page = 1, limit = 50, search, status } = options;
+    const { organizationId, page = 1, limit = 50, search, status } = options;
     const offset = (page - 1) * limit;
 
-    const conditions = [];
+    const conditions = [eq(events.organizationId, organizationId)];
 
     if (search) {
       conditions.push(
@@ -436,7 +566,7 @@ export const storage = {
           ilike(events.name, `%${search}%`),
           ilike(events.description, `%${search}%`),
           ilike(events.venue, `%${search}%`)
-        )
+        )!
       );
     }
 
@@ -444,7 +574,7 @@ export const storage = {
       conditions.push(eq(events.status, status));
     }
 
-    const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+    const whereClause = and(...conditions);
 
     const eventsResult = await db
       .select()
@@ -469,11 +599,11 @@ export const storage = {
     };
   },
 
-  async getEvent(id: string): Promise<any> {
+  async getEvent(id: string, organizationId: string): Promise<any> {
     const event = await db
       .select()
       .from(events)
-      .where(eq(events.id, id))
+      .where(and(eq(events.id, id), eq(events.organizationId, organizationId)))
       .limit(1);
     if (event.length === 0) return null;
 
@@ -497,37 +627,55 @@ export const storage = {
     };
   },
 
-  async createEvent(data: InsertEvent): Promise<any> {
+  async createEvent(data: InsertEvent & { organizationId: string }): Promise<any> {
     const result = await db
       .insert(events)
       .values(data as any)
       .returning();
-    return result[0];
+    const newEvent = result[0];
+    if (!newEvent) return null;
+
+    const menuId = (data as any).menuId;
+    if (menuId && newEvent.id && newEvent.guestCount && data.organizationId) {
+      const menu = await this.getMenu(menuId, data.organizationId);
+      if (menu?.recipes?.length) {
+        for (const mr of menu.recipes) {
+          const recipeId = mr.recipeId ?? mr.recipe?.id;
+          if (recipeId) {
+            await this.addRecipeToEvent({
+              eventId: newEvent.id,
+              recipeId,
+              plannedServings: Number(newEvent.guestCount) || 1,
+              notes: mr.notes ?? null,
+            });
+          }
+        }
+      }
+    }
+    return newEvent;
   },
 
-  async updateEvent(id: string, data: UpdateEvent): Promise<any> {
+  async updateEvent(id: string, organizationId: string, data: UpdateEvent): Promise<any> {
     const result = await db
       .update(events)
       .set(data)
-      .where(eq(events.id, id))
+      .where(and(eq(events.id, id), eq(events.organizationId, organizationId)))
       .returning();
     return result[0] || null;
   },
 
-  async deleteEvent(id: string): Promise<boolean> {
+  async deleteEvent(id: string, organizationId: string): Promise<boolean> {
     try {
-      // First check if the event exists
       const existingEvent = await db
         .select()
         .from(events)
-        .where(eq(events.id, id))
+        .where(and(eq(events.id, id), eq(events.organizationId, organizationId)))
         .limit(1);
       if (existingEvent.length === 0) {
         return false;
       }
 
-      // Delete the event
-      await db.delete(events).where(eq(events.id, id));
+      await db.delete(events).where(and(eq(events.id, id), eq(events.organizationId, organizationId)));
       return true;
     } catch (error) {
       console.error("Error deleting event:", error);
@@ -536,12 +684,12 @@ export const storage = {
   },
 
   // Additional methods expected by route files
-  async getRecipeWithIngredients(id: string): Promise<any> {
-    return this.getRecipe(id);
+  async getRecipeWithIngredients(id: string, organizationId: string): Promise<any> {
+    return this.getRecipe(id, organizationId);
   },
 
-  async getEventWithRecipes(id: string): Promise<any> {
-    return this.getEvent(id);
+  async getEventWithRecipes(id: string, organizationId: string): Promise<any> {
+    return this.getEvent(id, organizationId);
   },
 
   // Recipe ingredient management
@@ -608,15 +756,95 @@ export const storage = {
     return result[0] as any;
   },
 
-  // Calculation methods (placeholder implementations)
-  async calculateRecipeCosts(recipeId: string, params: any): Promise<any> {
-    // Placeholder implementation
+  // Calculation methods
+  async calculateRecipeCosts(recipeId: string, params: { organizationId: string } & Record<string, any>): Promise<any> {
+    const recipe = await this.getRecipe(recipeId, params.organizationId);
+    if (!recipe) return null;
+
+    const originalServings = Number(recipe.servings) || 1;
+    let targetServings = originalServings;
+
+    if (params?.targetServings && params.targetServings > 0) {
+      targetServings = params.targetServings;
+    } else if (params?.guestCount && params.guestCount > 0) {
+      const servingsPerGuest = params?.servingsPerGuest ?? 1;
+      targetServings = params.guestCount * servingsPerGuest;
+    }
+
+    const scaleFactor = targetServings / originalServings;
+
+    const ingredients: Array<{
+      id: string;
+      name: string;
+      originalQuantity: number;
+      scaledQuantity: number;
+      unit: string;
+      costPerUnit: number;
+      totalCost: number;
+      notes?: string;
+    }> = [];
+
+    let originalCost = 0;
+    let scaledCost = 0;
+
+    if (recipe.ingredients && recipe.ingredients.length > 0) {
+      for (const ri of recipe.ingredients) {
+        const quantity = parseFloat(String(ri.quantity)) || 0;
+        const costPerUnit = parseFloat(
+          String(ri.ingredient?.costPerUnit ?? 0)
+        ) || 0;
+        const scaledQuantity = Math.round(quantity * scaleFactor * 10000) / 10000;
+        const totalCost = scaledQuantity * costPerUnit;
+
+        originalCost += quantity * costPerUnit;
+        scaledCost += totalCost;
+
+        ingredients.push({
+          id: ri.ingredientId ?? ri.ingredient?.id,
+          name: ri.ingredient?.name ?? "Unknown",
+          originalQuantity: quantity,
+          scaledQuantity,
+          unit: ri.unit ?? ri.ingredient?.defaultUnit ?? "",
+          costPerUnit,
+          totalCost,
+          notes: ri.notes ?? undefined,
+        });
+      }
+    }
+
+    // Add sub-recipe costs (sub-recipes used as ingredients)
+    if (recipe.subRecipes && recipe.subRecipes.length > 0) {
+      for (const sr of recipe.subRecipes) {
+          const subRecipe = sr.subRecipe ?? (await this.getRecipe(sr.subRecipeId, params.organizationId));
+        if (subRecipe) {
+          const subQuantity = parseFloat(String(sr.quantity)) || 0;
+          const subServings = Number(subRecipe.servings) || 1;
+          const subTargetServings = subQuantity * subServings * scaleFactor;
+          const subCostResult = await this.calculateRecipeCosts(subRecipe.id, {
+            organizationId: params.organizationId,
+            targetServings: subTargetServings,
+          });
+          if (subCostResult) {
+            originalCost += subCostResult.originalCost * subQuantity;
+            scaledCost += subCostResult.scaledCost;
+          }
+        }
+      }
+    }
+
+    const costPerServing = targetServings > 0 ? scaledCost / targetServings : 0;
+
     return {
-      originalCost: 0,
-      scaledCost: 0,
-      costPerServing: 0,
-      scaleFactor: 1,
-      ingredients: [],
+      id: recipeId,
+      name: recipe.name,
+      originalCost,
+      scaledCost,
+      totalCost: scaledCost, // alias for frontend compatibility
+      costPerServing,
+      scaleFactor,
+      originalServings,
+      targetServings,
+      ingredients,
     };
   },
 
@@ -748,23 +976,24 @@ export const storage = {
   // Menu operations
   async getMenus(
     options: {
+      organizationId: string;
       page?: number;
       limit?: number;
       search?: string;
       category?: string;
-    } = {}
+    }
   ) {
-    const { page = 1, limit = 50, search, category } = options;
+    const { organizationId, page = 1, limit = 50, search, category } = options;
     const offset = (page - 1) * limit;
 
-    const conditions = [];
+    const conditions = [eq(menus.organizationId, organizationId)];
 
     if (search) {
       conditions.push(
         or(
           ilike(menus.name, `%${search}%`),
           ilike(menus.description, `%${search}%`)
-        )
+        )!
       );
     }
 
@@ -772,7 +1001,7 @@ export const storage = {
       conditions.push(eq(menus.category, category));
     }
 
-    const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+    const whereClause = and(...conditions);
 
     const menusResult = await db
       .select()
@@ -797,8 +1026,8 @@ export const storage = {
     };
   },
 
-  async getMenu(id: string): Promise<any> {
-    const menu = await db.select().from(menus).where(eq(menus.id, id)).limit(1);
+  async getMenu(id: string, organizationId: string): Promise<any> {
+    const menu = await db.select().from(menus).where(and(eq(menus.id, id), eq(menus.organizationId, organizationId))).limit(1);
     if (menu.length === 0) return null;
 
     const menuRecipesResult = await db
@@ -808,10 +1037,9 @@ export const storage = {
       .where(eq(menuRecipes.menuId, id))
       .orderBy(asc(menuRecipes.order));
 
-    // Fetch full recipe details with ingredients for each recipe
     const recipesWithDetails = await Promise.all(
       menuRecipesResult.map(async (mr: any) => {
-        const fullRecipe = await this.getRecipe(mr.recipes!.id);
+        const fullRecipe = await this.getRecipe(mr.recipes!.id, organizationId);
         return {
           id: mr.menu_recipes.id,
           menuId: mr.menu_recipes.menuId,
@@ -830,7 +1058,7 @@ export const storage = {
     };
   },
 
-  async createMenu(data: InsertMenu): Promise<any> {
+  async createMenu(data: InsertMenu & { organizationId: string }): Promise<any> {
     const result = await db
       .insert(menus)
       .values(data as any)
@@ -838,29 +1066,27 @@ export const storage = {
     return result[0];
   },
 
-  async updateMenu(id: string, data: UpdateMenu): Promise<any> {
+  async updateMenu(id: string, organizationId: string, data: UpdateMenu): Promise<any> {
     const result = await db
       .update(menus)
       .set(data)
-      .where(eq(menus.id, id))
+      .where(and(eq(menus.id, id), eq(menus.organizationId, organizationId)))
       .returning();
     return result[0] || null;
   },
 
-  async deleteMenu(id: string): Promise<boolean> {
+  async deleteMenu(id: string, organizationId: string): Promise<boolean> {
     try {
-      // First check if the menu exists
       const existingMenu = await db
         .select()
         .from(menus)
-        .where(eq(menus.id, id))
+        .where(and(eq(menus.id, id), eq(menus.organizationId, organizationId)))
         .limit(1);
       if (existingMenu.length === 0) {
         return false;
       }
 
-      // Delete the menu (cascade will handle menu_recipes)
-      await db.delete(menus).where(eq(menus.id, id));
+      await db.delete(menus).where(and(eq(menus.id, id), eq(menus.organizationId, organizationId)));
       return true;
     } catch (error) {
       console.error("Error deleting menu:", error);

@@ -1,21 +1,21 @@
 import { Router } from "express";
 import { storage } from "../storage";
+import { authMiddleware, type AuthRequest } from "../middleware/auth.js";
 
 const router = Router();
+router.use(authMiddleware);
 
 // Get all menus with search functionality
-router.get("/menus", async (req, res) => {
+router.get("/menus", async (req: AuthRequest, res) => {
   try {
+    const orgId = req.auth!.organizationId;
     const search = req.query.search as string;
     const category = req.query.category as string;
     const page = parseInt(req.query.page as string) || 1;
     const limit = parseInt(req.query.limit as string) || 50;
 
-    console.log(
-      `Fetching menus - search: ${search}, category: ${category}, page: ${page}, limit: ${limit}`
-    );
-
     const result = await storage.getMenus({
+      organizationId: orgId,
       search,
       category,
       page,
@@ -30,32 +30,23 @@ router.get("/menus", async (req, res) => {
 });
 
 // Create new menu
-router.post("/menus", async (req, res) => {
+router.post("/menus", async (req: AuthRequest, res) => {
   try {
-    console.log("Creating new menu:", req.body);
-
+    const orgId = req.auth!.organizationId;
     const { name, description, category, isActive, recipeIds } = req.body;
 
     if (!name || !category) {
       return res.status(400).json({ error: "Name and category are required" });
     }
 
-    // Calculate totalCost and avgPrepTime from recipes
     let totalCost = 0;
     let avgPrepTime = 0;
 
     if (recipeIds && recipeIds.length > 0) {
       try {
-        // Fetch recipe details to calculate totals
         const recipePromises = recipeIds.map(async (recipeId: string) => {
           try {
-            const response = await fetch(
-              `http://localhost:3000/api/recipes/${recipeId}`
-            );
-            if (response.ok) {
-              return await response.json();
-            }
-            return null;
+            return await storage.getRecipe(recipeId, orgId);
           } catch (error) {
             console.error(`Error fetching recipe ${recipeId}:`, error);
             return null;
@@ -93,9 +84,9 @@ router.post("/menus", async (req, res) => {
       }
     }
 
-    // Create new menu in database
     const newMenu = await storage.createMenu({
       name,
+      organizationId: orgId,
       description: description || "",
       category,
       isActive: isActive !== false,
@@ -124,19 +115,17 @@ router.post("/menus", async (req, res) => {
 });
 
 // Update menu
-router.put("/menus/:id", async (req, res) => {
+router.put("/menus/:id", async (req: AuthRequest, res) => {
   try {
     const { id } = req.params;
-    console.log(`Updating menu ${id}:`, req.body);
-
+    const orgId = req.auth!.organizationId;
     const { name, description, category, isActive, recipeIds } = req.body;
 
     if (!name || !category) {
       return res.status(400).json({ error: "Name and category are required" });
     }
 
-    // Check if menu exists
-    const existingMenu = await storage.getMenu(id);
+    const existingMenu = await storage.getMenu(id, orgId);
     if (!existingMenu) {
       return res.status(404).json({ error: "Menu not found" });
     }
@@ -150,13 +139,7 @@ router.put("/menus/:id", async (req, res) => {
         // Fetch recipe details to calculate totals
         const recipePromises = recipeIds.map(async (recipeId: string) => {
           try {
-            const response = await fetch(
-              `http://localhost:3000/api/recipes/${recipeId}`
-            );
-            if (response.ok) {
-              return await response.json();
-            }
-            return null;
+            return await storage.getRecipe(recipeId, orgId);
           } catch (error) {
             console.error(`Error fetching recipe ${recipeId}:`, error);
             return null;
@@ -194,8 +177,7 @@ router.put("/menus/:id", async (req, res) => {
       }
     }
 
-    // Update menu in database
-    const updatedMenu = await storage.updateMenu(id, {
+    const updatedMenu = await storage.updateMenu(id, orgId, {
       name,
       description: description || "",
       category,
@@ -235,12 +217,11 @@ router.put("/menus/:id", async (req, res) => {
 });
 
 // Delete menu
-router.delete("/menus/:id", async (req, res) => {
+router.delete("/menus/:id", async (req: AuthRequest, res) => {
   try {
     const { id } = req.params;
-    console.log(`Deleting menu with ID: ${id}`);
-
-    const success = await storage.deleteMenu(id);
+    const orgId = req.auth!.organizationId;
+    const success = await storage.deleteMenu(id, orgId);
     if (!success) {
       return res.status(404).json({ error: "Menu not found" });
     }
@@ -254,12 +235,11 @@ router.delete("/menus/:id", async (req, res) => {
 });
 
 // Get menu details with recipes
-router.get("/menus/:id", async (req, res) => {
+router.get("/menus/:id", async (req: AuthRequest, res) => {
   try {
     const { id } = req.params;
-    console.log(`Fetching menu details for ID: ${id}`);
-
-    const menu = await storage.getMenu(id);
+    const orgId = req.auth!.organizationId;
+    const menu = await storage.getMenu(id, orgId);
     if (!menu) {
       return res.status(404).json({ error: "Menu not found" });
     }

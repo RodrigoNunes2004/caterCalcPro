@@ -13,6 +13,7 @@ import {
   Cake,
   Star,
   BookOpen,
+  Menu as MenuIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -45,6 +46,7 @@ import {
 import { toast } from "@/hooks/use-toast";
 import EventPrepGuide from "@/components/EventPrepGuide";
 import Navigation from "@/components/Navigator";
+import { DEFAULT_GUEST_COUNT } from "@/lib/constants";
 
 interface EventType {
   id: string;
@@ -151,6 +153,7 @@ interface EventFormData {
   name: string;
   description: string;
   eventType: string;
+  menuId: string;
   date: string;
   guestCount: number;
   venue: string;
@@ -168,11 +171,21 @@ export default function EventsPage() {
     name: "",
     description: "",
     eventType: "",
+    menuId: "",
     date: "",
-    guestCount: 50,
+    guestCount: DEFAULT_GUEST_COUNT,
     venue: "",
     budgetPercentage: 0,
   });
+
+  // Fetch menus for the dropdown
+  const [menus, setMenus] = useState<{ id: string; name: string; category: string }[]>([]);
+  useEffect(() => {
+    fetch("/api/menus")
+      .then((res) => res.ok ? res.json() : { menus: [] })
+      .then((data) => setMenus(data.menus || []))
+      .catch(() => setMenus([]));
+  }, []);
 
   // Fetch events from API
   const fetchEvents = async () => {
@@ -207,8 +220,9 @@ export default function EventsPage() {
       name: "",
       description: "",
       eventType: "",
+      menuId: "",
       date: "",
-      guestCount: 50,
+      guestCount: DEFAULT_GUEST_COUNT,
       venue: "",
       budgetPercentage: 0,
     });
@@ -239,6 +253,7 @@ export default function EventsPage() {
         name: formData.name,
         description: formData.description,
         eventType: formData.eventType,
+        menuId: formData.menuId || undefined,
         eventDate: formData.date,
         guestCount: formData.guestCount,
         venue: formData.venue,
@@ -292,8 +307,9 @@ export default function EventsPage() {
       name: "",
       description: "",
       eventType: "",
+      menuId: "",
       date: "",
-      guestCount: 50,
+      guestCount: DEFAULT_GUEST_COUNT,
       venue: "",
       budgetPercentage: 0,
     });
@@ -304,6 +320,7 @@ export default function EventsPage() {
       name: event.name,
       description: event.description,
       eventType: event.eventType,
+      menuId: (event as any).menuId ?? "",
       date: event.eventDate.split("T")[0], // Convert to YYYY-MM-DD format
       guestCount: event.guestCount,
       venue: event.venue,
@@ -733,7 +750,7 @@ export default function EventsPage() {
               </div>
             </div>
 
-            <EventPrepGuide eventType={selectedPrepGuide} guestCount={100} />
+            <EventPrepGuide eventType={selectedPrepGuide} guestCount={DEFAULT_GUEST_COUNT} />
           </TabsContent>
         </Tabs>
       </div>
@@ -826,6 +843,35 @@ export default function EventsPage() {
                   required
                 />
               </div>
+            </div>
+
+            <div>
+              <Label htmlFor="event-menu">
+                <MenuIcon className="inline h-4 w-4 mr-1.5" />
+                Menu (optional)
+              </Label>
+              <Select
+                value={formData.menuId || "none"}
+                onValueChange={(value) =>
+                  setFormData({ ...formData, menuId: value === "none" ? "" : value })
+                }
+              >
+                <SelectTrigger id="event-menu">
+                  <SelectValue placeholder="Select a menu" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">No menu selected</SelectItem>
+                  {menus.map((menu) => (
+                    <SelectItem key={menu.id} value={menu.id}>
+                      {menu.name}
+                      {menu.category ? ` (${menu.category})` : ""}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground mt-1">
+                Link a saved menu to copy its recipes to this event
+              </p>
             </div>
 
             <div className="grid grid-cols-2 gap-4">

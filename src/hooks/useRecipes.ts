@@ -30,14 +30,14 @@ const api = {
     if (params.search) searchParams.set("search", params.search);
     if (params.category) searchParams.set("category", params.category);
 
-    const response = await fetch(`/api/recipes?${searchParams}`);
+    const response = await fetch(`/api/recipes?${searchParams}`, { credentials: "include" });
     if (!response.ok) throw new Error("Failed to fetch recipes");
     return response.json();
   },
 
   // Get single recipe with ingredients
   getRecipe: async (id: string): Promise<RecipeWithIngredients> => {
-    const response = await fetch(`/api/recipes/${id}`);
+    const response = await fetch(`/api/recipes/${id}`, { credentials: "include" });
     if (!response.ok) throw new Error("Failed to fetch recipe");
     return response.json();
   },
@@ -48,6 +48,7 @@ const api = {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(recipe),
+      credentials: "include",
     });
     if (!response.ok) throw new Error("Failed to create recipe");
     return response.json();
@@ -59,6 +60,7 @@ const api = {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(recipe),
+      credentials: "include",
     });
     if (!response.ok) throw new Error("Failed to update recipe");
     return response.json();
@@ -68,6 +70,7 @@ const api = {
   deleteRecipe: async (id: string): Promise<void> => {
     const response = await fetch(`/api/recipes/${id}`, {
       method: "DELETE",
+      credentials: "include",
     });
     if (!response.ok) throw new Error("Failed to delete recipe");
   },
@@ -82,6 +85,7 @@ const api = {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(ingredient),
+        credentials: "include",
       }
     );
     if (!response.ok) throw new Error("Failed to add ingredient to recipe");
@@ -96,6 +100,7 @@ const api = {
       `/api/recipes/${recipeId}/ingredients/${ingredientId}`,
       {
         method: "DELETE",
+        credentials: "include",
       }
     );
     if (!response.ok)
@@ -112,6 +117,7 @@ const api = {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(subRecipe),
+        credentials: "include",
       }
     );
     if (!response.ok) throw new Error("Failed to add sub-recipe to recipe");
@@ -141,6 +147,7 @@ const api = {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(params),
+      credentials: "include",
     });
     if (!response.ok) throw new Error("Failed to calculate recipe costs");
     return response.json();
@@ -170,6 +177,7 @@ const api = {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ recipes, guestCount }),
+      credentials: "include",
     });
     if (!response.ok) throw new Error("Failed to generate shopping list");
     return response.json();
@@ -185,6 +193,7 @@ const api = {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ modifiedIngredientId, newQuantity }),
+      credentials: "include",
     });
     if (!response.ok) throw new Error("Failed to adjust recipe proportions");
     return response.json();
@@ -201,7 +210,7 @@ const api = {
       percentage: number;
     }>;
   }> => {
-    const response = await fetch(`/api/recipes/${id}/nutrition`);
+    const response = await fetch(`/api/recipes/${id}/nutrition`, { credentials: "include" });
     if (!response.ok) throw new Error("Failed to fetch recipe nutrition");
     return response.json();
   },

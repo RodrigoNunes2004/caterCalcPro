@@ -1,5 +1,5 @@
-import React, { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import React from "react";
+import { Link, useNavigate } from "react-router-dom";
 import {
   ChefHat,
   Calculator,
@@ -17,7 +17,6 @@ import {
   Shield,
   Mail,
   Eye,
-  EyeOff,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -27,17 +26,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 interface Feature {
@@ -140,27 +129,9 @@ const useCases = [
 
 export default function LandingPage() {
   const navigate = useNavigate();
-  const [showSignUp, setShowSignUp] = useState(false);
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [showPassword, setShowPassword] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
 
-  const handleSignUp = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsLoading(true);
-
-    // Simulate sign up process
-    setTimeout(() => {
-      setIsLoading(false);
-      setShowSignUp(false);
-      // Navigate to home page after successful signup
-      navigate("/");
-    }, 2000);
-  };
-
-  const handleDemoAccess = () => {
-    navigate("/");
+  const handleGoToApp = () => {
+    navigate("/login");
   };
 
   return (
@@ -282,81 +253,12 @@ export default function LandingPage() {
               <h1 className="text-2xl font-bold text-gray-900">Gastro Grid</h1>
             </div>
             <div className="flex items-center space-x-4">
-              <Button variant="outline" onClick={handleDemoAccess}>
-                View Demo
+              <Button variant="outline" asChild>
+                <Link to="/login">Sign In</Link>
               </Button>
-              <Dialog open={showSignUp} onOpenChange={setShowSignUp}>
-                <DialogTrigger asChild>
-                  <Button className="bg-orange-600 hover:bg-orange-700">
-                    Start Free Trial
-                  </Button>
-                </DialogTrigger>
-                <DialogContent className="max-w-md">
-                  <DialogHeader>
-                    <DialogTitle>Start Your Free 14-Day Trial</DialogTitle>
-                    <DialogDescription>
-                      No credit card required. Full access to all features.
-                    </DialogDescription>
-                  </DialogHeader>
-                  <form onSubmit={handleSignUp} className="space-y-4">
-                    <div>
-                      <Label htmlFor="email">Email Address</Label>
-                      <Input
-                        id="email"
-                        type="email"
-                        value={email}
-                        onChange={(e) => setEmail(e.target.value)}
-                        placeholder="chef@example.com"
-                        required
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="password">Password</Label>
-                      <div className="relative">
-                        <Input
-                          id="password"
-                          type={showPassword ? "text" : "password"}
-                          value={password}
-                          onChange={(e) => setPassword(e.target.value)}
-                          placeholder="Create a secure password"
-                          required
-                        />
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
-                          onClick={() => setShowPassword(!showPassword)}
-                        >
-                          {showPassword ? (
-                            <EyeOff className="h-4 w-4" />
-                          ) : (
-                            <Eye className="h-4 w-4" />
-                          )}
-                        </Button>
-                      </div>
-                    </div>
-                    <Button
-                      type="submit"
-                      className="w-full bg-orange-600 hover:bg-orange-700"
-                      disabled={isLoading}
-                    >
-                      {isLoading ? (
-                        <div className="flex items-center space-x-2">
-                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                          <span>Creating Account...</span>
-                        </div>
-                      ) : (
-                        "Start Free Trial"
-                      )}
-                    </Button>
-                    <p className="text-xs text-gray-600 text-center">
-                      By signing up, you agree to our Terms of Service and
-                      Privacy Policy
-                    </p>
-                  </form>
-                </DialogContent>
-              </Dialog>
+              <Button className="bg-orange-600 hover:bg-orange-700" asChild>
+                <Link to="/register">Start Free Trial</Link>
+              </Button>
             </div>
           </div>
         </div>
@@ -379,32 +281,31 @@ export default function LandingPage() {
           </p>
 
           <div className="flex flex-col sm:flex-row gap-4 justify-center mb-12">
-            <Dialog open={showSignUp} onOpenChange={setShowSignUp}>
-              <DialogTrigger asChild>
-                <Button
-                  size="lg"
-                  className="bg-orange-600 hover:bg-orange-700 text-lg px-8 py-4"
-                >
-                  <Zap className="h-5 w-5 mr-2" />
-                  Start Free 14-Day Trial
-                </Button>
-              </DialogTrigger>
-            </Dialog>
+            <Button
+              size="lg"
+              className="bg-orange-600 hover:bg-orange-700 text-lg px-8 py-4"
+              asChild
+            >
+              <Link to="/register">
+                <Zap className="h-5 w-5 mr-2" />
+                Start Free 30-Day Trial
+              </Link>
+            </Button>
             <Button
               size="lg"
               variant="outline"
               className="text-lg px-8 py-4"
-              onClick={handleDemoAccess}
+              onClick={handleGoToApp}
             >
               <Eye className="h-5 w-5 mr-2" />
-              View Live Demo
+              Sign In
             </Button>
           </div>
 
           <div className="flex items-center justify-center space-x-8 text-sm text-gray-600">
             <div className="flex items-center space-x-2">
               <CheckCircle className="h-5 w-5 text-green-500" />
-              <span>14-day free trial</span>
+              <span>30-day free trial</span>
             </div>
             <div className="flex items-center space-x-2">
               <CheckCircle className="h-5 w-5 text-green-500" />
@@ -557,7 +458,7 @@ export default function LandingPage() {
               <CardHeader className="text-center bg-orange-600 text-white rounded-t-lg">
                 <CardTitle className="text-2xl">Professional Plan</CardTitle>
                 <div className="text-4xl font-bold mt-4">
-                  $60<span className="text-lg font-normal">/month</span>
+                  $79<span className="text-lg font-normal">/month</span>
                 </div>
                 <p className="text-orange-100 mt-2">
                   Billed monthly, cancel anytime
@@ -594,21 +495,19 @@ export default function LandingPage() {
                 <div className="mt-8 p-4 bg-green-50 rounded-lg">
                   <div className="flex items-center space-x-2 text-green-800">
                     <Shield className="h-5 w-5" />
-                    <span className="font-semibold">14-Day Free Trial</span>
+                    <span className="font-semibold">30-Day Free Trial</span>
                   </div>
                   <p className="text-sm text-green-700 mt-1">
                     Full access to all features. No credit card required.
                   </p>
                 </div>
 
-                <Dialog open={showSignUp} onOpenChange={setShowSignUp}>
-                  <DialogTrigger asChild>
-                    <Button className="w-full mt-6 bg-orange-600 hover:bg-orange-700 text-lg py-3">
-                      Start Your Free Trial
-                      <ArrowRight className="h-5 w-5 ml-2" />
-                    </Button>
-                  </DialogTrigger>
-                </Dialog>
+                <Button className="w-full mt-6 bg-orange-600 hover:bg-orange-700 text-lg py-3" asChild>
+                  <Link to="/register">
+                    Start Your Free Trial
+                    <ArrowRight className="h-5 w-5 ml-2" />
+                  </Link>
+                </Button>
               </CardContent>
             </Card>
           </div>
@@ -627,25 +526,24 @@ export default function LandingPage() {
           </p>
 
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Dialog open={showSignUp} onOpenChange={setShowSignUp}>
-              <DialogTrigger asChild>
-                <Button
-                  size="lg"
-                  className="bg-orange-600 hover:bg-orange-700 text-lg px-8 py-4"
-                >
-                  <Mail className="h-5 w-5 mr-2" />
-                  Start Free Trial Now
-                </Button>
-              </DialogTrigger>
-            </Dialog>
+            <Button
+              size="lg"
+              className="bg-orange-600 hover:bg-orange-700 text-lg px-8 py-4"
+              asChild
+            >
+              <Link to="/register">
+                <Mail className="h-5 w-5 mr-2" />
+                Start Free Trial Now
+              </Link>
+            </Button>
             <Button
               size="lg"
               variant="outline"
               className="text-lg px-8 py-4 border-gray-600 text-gray-300 hover:bg-gray-800"
-              onClick={handleDemoAccess}
+              onClick={handleGoToApp}
             >
               <Eye className="h-5 w-5 mr-2" />
-              Explore Demo
+              Sign In
             </Button>
           </div>
 

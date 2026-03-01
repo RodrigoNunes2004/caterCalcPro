@@ -65,7 +65,9 @@ export default function PrepListGenerator({ onSave }: PrepListGeneratorProps) {
   const [menus, setMenus] = useState<Menu[]>([]);
   const [selectedEvent, setSelectedEvent] = useState<string>("");
   const [selectedMenus, setSelectedMenus] = useState<string[]>([]);
-  const [guestCount, setGuestCount] = useState<number>(50);
+  const [guestCount, setGuestCount] = useState<number>(
+    parseInt(import.meta.env.VITE_DEFAULT_GUEST_COUNT || "50", 10) || 50
+  );
   const [searchTerm, setSearchTerm] = useState<string>("");
   const [prepList, setPrepList] = useState<any>(null);
   const [loading, setLoading] = useState(false);

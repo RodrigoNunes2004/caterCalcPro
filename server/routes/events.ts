@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { storage } from "../storage";
+import { authMiddleware, type AuthRequest } from "../middleware/auth.js";
 import {
   insertEventSchema,
   updateEventSchema,
@@ -7,20 +8,19 @@ import {
 } from "../../shared/schema";
 
 const router = Router();
+router.use(authMiddleware);
 
 // Get all events with pagination and search
-router.get("/events", async (req, res) => {
+router.get("/events", async (req: AuthRequest, res) => {
   try {
+    const orgId = req.auth!.organizationId;
     const page = parseInt(req.query.page as string) || 1;
     const limit = parseInt(req.query.limit as string) || 20;
     const search = req.query.search as string;
     const status = req.query.status as string;
 
-    console.log(
-      `Fetching events - page: ${page}, limit: ${limit}, search: ${search}, status: ${status}`
-    );
-
     const events = await storage.getEvents({
+      organizationId: orgId,
       page,
       limit,
       search,
@@ -35,12 +35,11 @@ router.get("/events", async (req, res) => {
 });
 
 // Get single event with recipes
-router.get("/events/:id", async (req, res) => {
+router.get("/events/:id", async (req: AuthRequest, res) => {
   try {
     const { id } = req.params;
-    console.log(`Fetching event with ID: ${id}`);
-
-    const event = await storage.getEventWithRecipes(id);
+    const orgId = req.auth!.organizationId;
+    const event = await storage.getEventWithRecipes(id, orgId);
 
     if (!event) {
       return res.status(404).json({ error: "Event not found" });
@@ -54,20 +53,22 @@ router.get("/events/:id", async (req, res) => {
 });
 
 // Create new event
-router.post("/events", async (req, res) => {
+router.post("/events", async (req: AuthRequest, res) => {
   try {
-    console.log("Creating new event:", req.body);
-
-    // Preprocess the data to handle type conversions
+    const orgId = req.auth!.organizationId;
     const processedData = {
       ...req.body,
+      organizationId: orgId,
       eventDate: req.body.eventDate ? new Date(req.body.eventDate) : undefined,
       budgetPercentage: req.body.budgetPercentage
         ? String(req.body.budgetPercentage)
         : undefined,
     };
 
-    const eventData = insertEventSchema.parse(processedData);
+    const eventData = insertEventSchema.parse({
+      ...processedData,
+      organizationId: orgId,
+    });
     const newEvent = await storage.createEvent(eventData);
 
     console.log("Created event:", newEvent);
@@ -79,13 +80,12 @@ router.post("/events", async (req, res) => {
 });
 
 // Update event
-router.put("/events/:id", async (req, res) => {
+router.put("/events/:id", async (req: AuthRequest, res) => {
   try {
     const { id } = req.params;
-    console.log(`Updating event ${id}:`, req.body);
-
+    const orgId = req.auth!.organizationId;
     const updateData = updateEventSchema.parse(req.body);
-    const updatedEvent = await storage.updateEvent(id, updateData);
+    const updatedEvent = await storage.updateEvent(id, orgId, updateData);
 
     if (!updatedEvent) {
       return res.status(404).json({ error: "Event not found" });
@@ -100,12 +100,11 @@ router.put("/events/:id", async (req, res) => {
 });
 
 // Delete event
-router.delete("/events/:id", async (req, res) => {
+router.delete("/events/:id", async (req: AuthRequest, res) => {
   try {
     const { id } = req.params;
-    console.log(`Deleting event with ID: ${id}`);
-
-    const success = await storage.deleteEvent(id);
+    const orgId = req.auth!.organizationId;
+    const success = await storage.deleteEvent(id, orgId);
 
     if (!success) {
       return res.status(404).json({ error: "Event not found" });
@@ -120,7 +119,7 @@ router.delete("/events/:id", async (req, res) => {
 });
 
 // Add recipe to event
-router.post("/events/:id/recipes", async (req, res) => {
+router.post("/events/:id/recipes", async (req: AuthRequest, res) => {
   try {
     const { id } = req.params;
     console.log(`Adding recipe to event ${id}:`, req.body);
@@ -141,7 +140,7 @@ router.post("/events/:id/recipes", async (req, res) => {
 });
 
 // Remove recipe from event
-router.delete("/events/:eventId/recipes/:recipeId", async (req, res) => {
+router.delete("/events/:eventId/recipes/:recipeId", async (req: AuthRequest, res) => {
   try {
     const { eventId, recipeId } = req.params;
     console.log(`Removing recipe ${recipeId} from event ${eventId}`);
@@ -163,7 +162,7 @@ router.delete("/events/:eventId/recipes/:recipeId", async (req, res) => {
 });
 
 // Update recipe servings in event
-router.put("/events/:eventId/recipes/:recipeId", async (req, res) => {
+router.put("/events/:eventId/recipes/:recipeId", async (req: AuthRequest, res) => {
   try {
     const { eventId, recipeId } = req.params;
     const { plannedServings, notes } = req.body;
@@ -194,7 +193,7 @@ router.put("/events/:eventId/recipes/:recipeId", async (req, res) => {
 });
 
 // Calculate total event costs
-router.get("/events/:id/calculate", async (req, res) => {
+router.get("/events/:id/calculate", async (req: AuthRequest, res) => {
   try {
     const { id } = req.params;
     console.log(`Calculating total costs for event ${id}`);
@@ -210,7 +209,7 @@ router.get("/events/:id/calculate", async (req, res) => {
 });
 
 // Generate shopping list for event
-router.get("/events/:id/shopping-list", async (req, res) => {
+router.get("/events/:id/shopping-list", async (req: AuthRequest, res) => {
   try {
     const { id } = req.params;
     console.log(`Generating shopping list for event ${id}`);
@@ -226,7 +225,7 @@ router.get("/events/:id/shopping-list", async (req, res) => {
 });
 
 // Compare multiple events
-router.post("/events/compare", async (req, res) => {
+router.post("/events/compare", async (req: AuthRequest, res) => {
   try {
     const { eventIds } = req.body;
 

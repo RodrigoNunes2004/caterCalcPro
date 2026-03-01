@@ -66,7 +66,13 @@ interface ShoppingListData {
 
 export default function ShoppingListGenerator() {
   const [selectedRecipes, setSelectedRecipes] = useState<SelectedRecipe[]>([]);
-  const [eventGuestCount, setEventGuestCount] = useState<number>(50);
+  const [eventGuestCount, setEventGuestCount] = useState<number>(() => {
+    try {
+      return parseInt(import.meta.env.VITE_DEFAULT_GUEST_COUNT || "50", 10) || 50;
+    } catch {
+      return 50;
+    }
+  });
   const [shoppingList, setShoppingList] = useState<ShoppingListData | null>(
     null
   );

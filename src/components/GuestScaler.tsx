@@ -62,7 +62,13 @@ interface ScaledRecipe {
 
 export default function GuestScaler() {
   const [selectedRecipeId, setSelectedRecipeId] = useState<string>("");
-  const [guestCount, setGuestCount] = useState<number>(50);
+  const [guestCount, setGuestCount] = useState<number>(() => {
+    try {
+      return parseInt(import.meta.env.VITE_DEFAULT_GUEST_COUNT || "50", 10) || 50;
+    } catch {
+      return 50;
+    }
+  });
   const [servingsPerGuest, setServingsPerGuest] = useState<number>(1);
   const [scaledRecipe, setScaledRecipe] = useState<ScaledRecipe | null>(null);
   const [adjustedIngredients, setAdjustedIngredients] = useState<

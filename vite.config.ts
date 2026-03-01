@@ -20,12 +20,12 @@ export default defineConfig(({ mode, command }) => {
       outDir: "dist/public",
     },
     server: {
-      port: 3000,
+      port: parseInt(process.env.VITE_DEV_PORT || "3000", 10),
       host: true,
       historyApiFallback: true,
       hmr: {
-        port: 3000,
-        host: "localhost",
+        port: parseInt(process.env.VITE_DEV_PORT || "3000", 10),
+        host: process.env.VITE_DEV_HOST || "localhost",
       },
     },
   };

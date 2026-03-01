@@ -1,7 +1,9 @@
 import { Router } from "express";
 import { storage } from "../storage";
+import { authMiddleware, type AuthRequest } from "../middleware/auth.js";
 
 const router = Router();
+router.use(authMiddleware);
 
 // Types for prep list generation
 interface PrepListRequest {
@@ -255,10 +257,9 @@ function extractPrepTasks(instructions: string): string[] {
 }
 
 // Generate prep list
-router.post("/prep-lists", async (req, res) => {
+router.post("/prep-lists", async (req: AuthRequest, res) => {
   try {
-    console.log("Generating prep list:", req.body);
-
+    const orgId = req.auth!.organizationId;
     const {
       eventId,
       menuIds,
@@ -272,35 +273,30 @@ router.post("/prep-lists", async (req, res) => {
       });
     }
 
-    // Fetch event details
-    const event = await storage.getEvent(eventId);
+    const event = await storage.getEvent(eventId, orgId);
     if (!event) {
       return res.status(404).json({ error: "Event not found" });
     }
 
-    // Fetch menus and their recipes
-    const menus = [];
+    const menusList = [];
     for (const menuId of menuIds) {
       try {
-        const response = await fetch(
-          `http://localhost:3000/api/menus/${menuId}`
-        );
-        if (response.ok) {
-          const menu = await response.json();
-          menus.push(menu);
+        const menu = await storage.getMenu(menuId, orgId);
+        if (menu) {
+          menusList.push(menu);
         }
       } catch (error) {
         console.error(`Error fetching menu ${menuId}:`, error);
       }
     }
 
-    if (menus.length === 0) {
+    if (menusList.length === 0) {
       return res.status(404).json({ error: "No valid menus found" });
     }
 
     // Collect all recipes from all menus
     const allRecipes = [];
-    for (const menu of menus) {
+    for (const menu of menusList) {
       if (menu.recipes && menu.recipes.length > 0) {
         allRecipes.push(...menu.recipes);
       }
@@ -491,7 +487,7 @@ router.post("/prep-lists", async (req, res) => {
       eventId,
       eventName: event.name,
       guestCount,
-      menus: menus.map((menu) => ({
+      menus: menusList.map((menu) => ({
         id: menu.id,
         name: menu.name,
         category: menu.category,
@@ -528,7 +524,7 @@ router.post("/prep-lists", async (req, res) => {
 });
 
 // Get prep list by ID (for future use)
-router.get("/prep-lists/:id", async (req, res) => {
+router.get("/prep-lists/:id", async (req: AuthRequest, res) => {
   try {
     const { id } = req.params;
     // In a real implementation, this would fetch from database

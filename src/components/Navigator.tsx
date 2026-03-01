@@ -10,7 +10,9 @@ import {
   Menu as HamburgerIcon,
   X,
   Scale,
+  LogOut,
 } from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import {
   Sheet,
@@ -34,7 +36,14 @@ export default function Navigation({
 }: NavigationProps) {
   const navigate = useNavigate();
   const location = useLocation();
+  const { logout } = useAuth();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+
+  const handleLogout = async () => {
+    await logout();
+    navigate("/login");
+    setIsMobileMenuOpen(false);
+  };
 
   const isActive = (path: string): boolean => {
     return location.pathname === path;
@@ -99,6 +108,9 @@ export default function Navigation({
         )}
 
         <ThemeToggle />
+        <Button variant="ghost" size="sm" onClick={handleLogout} title="Sign out">
+          <LogOut className="h-4 w-4" />
+        </Button>
       </div>
 
       {/* Mobile Navigation */}
@@ -156,6 +168,18 @@ export default function Navigation({
                   </Button>
                 </div>
               )}
+
+              <div className="pt-4 mt-4 border-t">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full justify-start"
+                  onClick={handleLogout}
+                >
+                  <LogOut className="h-4 w-4 mr-3" />
+                  Sign Out
+                </Button>
+              </div>
             </div>
           </SheetContent>
         </Sheet>
