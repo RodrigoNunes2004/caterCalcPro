@@ -152,9 +152,11 @@ export default function PrepListGenerator({ onSave }: PrepListGeneratorProps) {
         const data = await response.json();
         setPrepList(data);
         setActiveTab("prep-list");
+        const prepCount = data.prepTasks?.length || 0;
+        const purchaseCount = data.purchaseList?.length || 0;
         toast({
-          title: "Prep List Generated",
-          description: `Generated prep list for ${data.eventName}`,
+          title: "Prep List & Shopping List Generated",
+          description: `${data.eventName}: ${prepCount} prep tasks, ${purchaseCount} items to purchase. Check both tabs.`,
         });
       } else {
         const errData = await response.json().catch(() => ({}));
@@ -497,6 +499,11 @@ ${prepList.purchaseList
               >
                 <List className="h-4 w-4" />
                 Prep List
+                {prepList?.prepTasks?.length != null && (
+                  <Badge variant="secondary" className="ml-1 text-xs">
+                    {prepList.prepTasks.length}
+                  </Badge>
+                )}
               </TabsTrigger>
               <TabsTrigger
                 value="purchase-list"
@@ -504,6 +511,11 @@ ${prepList.purchaseList
               >
                 <ShoppingCart className="h-4 w-4" />
                 Purchase List
+                {prepList?.purchaseList?.length != null && (
+                  <Badge variant="secondary" className="ml-1 text-xs">
+                    {prepList.purchaseList.length}
+                  </Badge>
+                )}
               </TabsTrigger>
             </TabsList>
 
