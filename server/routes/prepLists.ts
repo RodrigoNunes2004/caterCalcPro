@@ -10,6 +10,10 @@ interface PrepListRequest {
   eventId: string;
   menuIds: string[];
   guestCount: number;
+  /** Portions per person (default 1). Total portions = guests × this. */
+  portionsPerPerson?: number;
+  /** Per-recipe override: portions per person for specific recipes */
+  recipePortions?: { [recipeId: string]: number };
   userOverrides?: {
     [ingredientId: string]: {
       quantity: number;
@@ -182,78 +186,26 @@ function convertFromBaseUnit(
   return quantity;
 }
 
-// Extract prep tasks from recipe instructions
-function extractPrepTasks(instructions: string): string[] {
-  const tasks: string[] = [];
-  const lines = instructions
-    .split("\n")
-    .map((line) => line.trim())
-    .filter((line) => line);
-
-  for (const line of lines) {
-    // Look for common prep verbs
-    const prepVerbs = [
-      "dice",
-      "chop",
-      "slice",
-      "mince",
-      "julienne",
-      "brunoise",
-      "chiffonade",
-      "blanch",
-      "boil",
-      "steam",
-      "roast",
-      "bake",
-      "grill",
-      "fry",
-      "sauté",
-      "marinate",
-      "season",
-      "mix",
-      "combine",
-      "whisk",
-      "beat",
-      "fold",
-      "portion",
-      "divide",
-      "separate",
-      "trim",
-      "clean",
-      "wash",
-      "peel",
-      "grate",
-      "shred",
-      "crush",
-      "mash",
-      "puree",
-      "strain",
-      "drain",
-    ];
-
-    const lowerLine = line.toLowerCase();
-    for (const verb of prepVerbs) {
-      if (lowerLine.includes(verb)) {
-        // Extract the task description
-        const taskMatch = line.match(
-          new RegExp(`\\d+[^\\d]*${verb}[^\\d]*`, "i")
-        );
-        if (taskMatch) {
-          tasks.push(taskMatch[0].trim());
-        } else {
-          // Just add the verb with context
-          const contextMatch = line.match(
-            new RegExp(`[^\\d]*${verb}[^\\d]*`, "i")
-          );
-          if (contextMatch) {
-            tasks.push(contextMatch[0].trim());
-          }
-        }
-      }
-    }
-  }
-
-  return Array.from(new Set(tasks)); // Remove duplicates
+// Map ingredients to chef prep actions (chop, peel, dice, etc.)
+function getPrepAction(ingredientName: string): string {
+  const name = ingredientName.toLowerCase().trim();
+  if (name.includes("onion")) return "Chop";
+  if (name.includes("potato") || name.includes("potatoes")) return "Peel";
+  if (name.includes("garlic")) return "Mince";
+  if (name.includes("carrot")) return "Peel and dice";
+  if (name.includes("tomato") || name.includes("tomatoes")) return "Dice";
+  if (name.includes("celery")) return "Chop";
+  if (name.includes("mushroom")) return "Slice";
+  if (name.includes("pepper") && !name.includes("black") && !name.includes("white")) return "Dice";
+  if (name.includes("zucchini") || name.includes("courgette")) return "Slice";
+  if (name.includes("lemon") || name.includes("lime")) return "Juice";
+  if (name.includes("cheese")) return "Grate";
+  if (name.includes("egg")) return "Crack";
+  if (name.includes("chicken") || name.includes("beef") || name.includes("pork") || name.includes("meat")) return "Portion";
+  if (name.includes("lettuce") || name.includes("greens") || name.includes("salad")) return "Wash and chop";
+  if (name.includes("herb") || name.includes("basil") || name.includes("parsley") || name.includes("cilantro")) return "Chop";
+  if (name.includes("bread") && !name.includes("crumbs")) return "Slice";
+  return "Prepare";
 }
 
 // Generate prep list
@@ -264,6 +216,8 @@ router.post("/prep-lists", async (req: AuthRequest, res) => {
       eventId,
       menuIds,
       guestCount,
+      portionsPerPerson = 1,
+      recipePortions = {},
       userOverrides = {},
     }: PrepListRequest = req.body;
 
@@ -294,13 +248,19 @@ router.post("/prep-lists", async (req: AuthRequest, res) => {
       return res.status(404).json({ error: "No valid menus found" });
     }
 
-    // Collect all recipes from all menus
-    const allRecipes = [];
+    // Collect all recipes from all menus, DEDUPLICATED by recipe ID (same recipe in 2 menus = count once)
+    const recipeById = new Map<string, (typeof menusList)[0]["recipes"][0]>();
     for (const menu of menusList) {
       if (menu.recipes && menu.recipes.length > 0) {
-        allRecipes.push(...menu.recipes);
+        for (const mr of menu.recipes) {
+          const recipe = mr?.recipe;
+          if (recipe?.id && !recipeById.has(recipe.id)) {
+            recipeById.set(recipe.id, mr);
+          }
+        }
       }
     }
+    const allRecipes = Array.from(recipeById.values());
 
     if (allRecipes.length === 0) {
       return res
@@ -308,15 +268,17 @@ router.post("/prep-lists", async (req: AuthRequest, res) => {
         .json({ error: "No recipes found in selected menus" });
     }
 
-    // Process ingredients and scale them
+    // Process ingredients and scale them (for purchase list and mise en place)
     const scaledIngredients: ScaledIngredient[] = [];
     const ingredientMap = new Map<string, ScaledIngredient>();
 
     for (const menuRecipe of allRecipes) {
-      const recipe = menuRecipe.recipe; // Extract the actual recipe from menu structure
+      const recipe = menuRecipe.recipe;
       if (!recipe) continue;
       const servings = Number(recipe.servings) || 1;
-      const scaleFactor = guestCount / servings;
+      const portionsForRecipe = recipePortions[recipe.id] ?? portionsPerPerson;
+      const totalPortions = guestCount * portionsForRecipe;
+      const scaleFactor = totalPortions / servings;
 
       if (recipe.ingredients && recipe.ingredients.length > 0) {
         for (const recipeIngredient of recipe.ingredients) {
@@ -324,7 +286,6 @@ router.post("/prep-lists", async (req: AuthRequest, res) => {
           const originalQuantity = parseFloat(recipeIngredient.quantity);
           const originalUnit = recipeIngredient.unit;
 
-          // Check for user override
           let finalQuantity = originalQuantity * scaleFactor;
           let finalUnit = originalUnit;
 
@@ -333,24 +294,18 @@ router.post("/prep-lists", async (req: AuthRequest, res) => {
             finalUnit = userOverrides[ingredient.id].unit;
           }
 
-          // One prep task per ingredient - avoid repeating instructions for every ingredient
-          const prepTasks = [`Prepare ${ingredient.name} (${finalQuantity} ${finalUnit})`];
-
           const key = ingredient.id;
           if (ingredientMap.has(key)) {
-            // Consolidate with existing ingredient
             const existing = ingredientMap.get(key)!;
             const { quantity: existingBase, baseUnit: existingBaseUnit } =
               convertToBaseUnit(existing.scaledQuantity, existing.scaledUnit);
             const { quantity: newBase, baseUnit: newBaseUnit } =
               convertToBaseUnit(finalQuantity, finalUnit);
 
-            // Convert to same base unit and add
             let totalBaseQuantity = existingBase;
             if (existingBaseUnit === newBaseUnit) {
               totalBaseQuantity += newBase;
             } else {
-              // Convert new quantity to existing base unit
               totalBaseQuantity += convertFromBaseUnit(
                 newBase,
                 newBaseUnit,
@@ -358,7 +313,6 @@ router.post("/prep-lists", async (req: AuthRequest, res) => {
               );
             }
 
-            // Convert back to display unit
             const displayQuantity = convertFromBaseUnit(
               totalBaseQuantity,
               existingBaseUnit,
@@ -366,10 +320,8 @@ router.post("/prep-lists", async (req: AuthRequest, res) => {
             );
 
             existing.scaledQuantity = displayQuantity;
-            existing.prepTasks = [`Prepare ${existing.name} (${displayQuantity} ${existing.scaledUnit})`];
           } else {
-            // Create new ingredient entry
-            const scaledIngredient: ScaledIngredient = {
+            ingredientMap.set(key, {
               ingredientId: ingredient.id,
               name: ingredient.name,
               category: ingredient.category || "other",
@@ -377,31 +329,59 @@ router.post("/prep-lists", async (req: AuthRequest, res) => {
               originalUnit,
               scaledQuantity: finalQuantity,
               scaledUnit: finalUnit,
-              prepTasks,
+              prepTasks: [],
               notes: recipeIngredient.notes,
-            };
-
-            ingredientMap.set(key, scaledIngredient);
+            });
           }
         }
       }
     }
 
-    // Convert map to array
     scaledIngredients.push(...Array.from(ingredientMap.values()));
 
-    // Generate prep tasks
+    // Build CHEF PREP TASKS: actionable items (Chop X onions, Peel X potatoes, Prepare X portions of Cheese Bread)
+    const countUnits = ["each", "pcs", "pieces", "whole", "egg", "eggs", "item", "items"];
+    const formatQty = (q: number, u: string) => {
+      const un = u.toLowerCase().trim();
+      if (countUnits.some((c) => un.includes(c))) return Math.round(q) || 1;
+      return Math.round(q * 100) / 100;
+    };
+
     const prepTasks: PrepTask[] = [];
-    for (const ingredient of scaledIngredients) {
-      for (const task of ingredient.prepTasks) {
+
+    // 1. Recipe-level: how many portions to produce (e.g. "Prepare 54 cheese bread portions")
+    for (const menuRecipe of allRecipes) {
+      const recipe = menuRecipe.recipe;
+      if (!recipe) continue;
+      const servings = Number(recipe.servings) || 1;
+      const portionsForRecipe = recipePortions[recipe.id] ?? portionsPerPerson;
+      const totalPortions = guestCount * portionsForRecipe;
+      if (totalPortions > 0) {
+        const recipeName = recipe.name || "Recipe";
         prepTasks.push({
-          task,
-          ingredient: ingredient.name,
-          quantity: ingredient.scaledQuantity,
-          unit: ingredient.scaledUnit,
-          category: ingredient.category,
+          task: `Prepare ${Math.round(totalPortions)} portions of ${recipeName}`,
+          ingredient: recipeName,
+          quantity: totalPortions,
+          unit: "portions",
+          category: "Dishes",
         });
       }
+    }
+
+    // 2. Ingredient prep: Chop X onions, Peel X potatoes, etc.
+    for (const ing of scaledIngredients) {
+      const qty = formatQty(ing.scaledQuantity, ing.scaledUnit);
+      const action = getPrepAction(ing.name);
+      const taskText = action === "Prepare"
+        ? `Prepare ${qty} ${ing.scaledUnit} ${ing.name}`
+        : `${action} ${qty} ${ing.scaledUnit} ${ing.name}`;
+      prepTasks.push({
+        task: taskText,
+        ingredient: ing.name,
+        quantity: ing.scaledQuantity,
+        unit: ing.scaledUnit,
+        category: ing.category,
+      });
     }
 
     // Fetch real inventory from database
@@ -471,6 +451,7 @@ router.post("/prep-lists", async (req: AuthRequest, res) => {
       eventId,
       eventName: event.name,
       guestCount,
+      portionsPerPerson,
       menus: menusList.map((menu) => ({
         id: menu.id,
         name: menu.name,

@@ -70,6 +70,7 @@ import {
   getGSTFromInclusive,
 } from "@/lib/gstCalculation";
 import { apiFetch } from "@/lib/api";
+import { toast } from "@/hooks/use-toast";
 import Navigation from "@/components/Navigator";
 
 interface InventoryItem {
@@ -111,6 +112,7 @@ export default function InventoryPage() {
   const navigate = useNavigate();
   const [inventory, setInventory] = useState<InventoryItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [addSubmitting, setAddSubmitting] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [filterLocation, setFilterLocation] = useState<string>("all");
   const [filterCategory, setFilterCategory] = useState<string>("all");
@@ -194,26 +196,36 @@ export default function InventoryPage() {
   };
 
   const handleAddItem = async () => {
-    if (!newItem.productName?.trim()) return;
+    if (!newItem.productName?.trim()) {
+      toast({ title: "Missing name", description: "Product name is required.", variant: "destructive" });
+      return;
+    }
+    setAddSubmitting(true);
     try {
       const res = await apiFetch("/api/inventory", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           name: newItem.productName.trim(),
-          currentStock: newItem.currentStock ?? 0,
+          currentStock: Number(newItem.currentStock) || 0,
           unit: newItem.unit || "kg",
-          minimumStock: newItem.minimumStock ?? 0,
+          minimumStock: Number(newItem.minimumStock) || 0,
         }),
       });
+      const data = await res.json().catch(() => ({}));
       if (res.ok) {
-        const created = await res.json();
-        setInventory([...inventory, mapApiToItem(created)]);
+        setInventory([...inventory, mapApiToItem(data)]);
         setNewItem({ productName: "", category: "General", type: "", location: "Storage", currentStock: 0, unit: "kg", pricePerUnit: 0, gstInclusive: false, minimumStock: 0, supplier: "", expiryDate: "", notes: "" });
         setShowAddDialog(false);
+        toast({ title: "Item added", description: `${newItem.productName} added to inventory.` });
+      } else {
+        toast({ title: "Failed to add", description: data?.error || "Could not add item. Please try again.", variant: "destructive" });
       }
     } catch (e) {
       console.error("Failed to add inventory:", e);
+      toast({ title: "Error", description: "Could not add item. Check your connection.", variant: "destructive" });
+    } finally {
+      setAddSubmitting(false);
     }
   };
 
@@ -854,8 +866,8 @@ export default function InventoryPage() {
                         </div>
 
                         <div className="flex space-x-2">
-                          <Button onClick={handleAddItem} className="flex-1">
-                            Add Item
+                          <Button type="button" onClick={handleAddItem} className="flex-1" disabled={addSubmitting}>
+                            {addSubmitting ? "Adding..." : "Add Item"}
                           </Button>
                           <Button
                             variant="outline"

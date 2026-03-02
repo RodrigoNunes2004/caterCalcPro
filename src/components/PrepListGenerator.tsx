@@ -68,6 +68,7 @@ export default function PrepListGenerator({ onSave }: PrepListGeneratorProps) {
   const [guestCount, setGuestCount] = useState<number>(
     parseInt(import.meta.env.VITE_DEFAULT_GUEST_COUNT || "50", 10) || 50
   );
+  const [portionsPerPerson, setPortionsPerPerson] = useState<number>(1);
   const [searchTerm, setSearchTerm] = useState<string>("");
   const [prepList, setPrepList] = useState<any>(null);
   const [loading, setLoading] = useState(false);
@@ -145,6 +146,7 @@ export default function PrepListGenerator({ onSave }: PrepListGeneratorProps) {
           eventId: selectedEvent,
           menuIds: selectedMenus,
           guestCount: guestCount,
+          portionsPerPerson: portionsPerPerson,
         }),
       });
 
@@ -184,7 +186,11 @@ Menus: ${prepList.menus.map((m: any) => m.name).join(", ")}
 
 ## Prep Tasks
 ${prepList.prepTasks
-  .map((task: any) => `• ${task.task} (${task.quantity} ${task.unit})`)
+  .map((task: any) =>
+    task.quantity != null && task.quantity > 0 && task.unit
+      ? `• ${task.task} (${task.quantity} ${task.unit})`
+      : `• ${task.task}`
+  )
   .join("\n")}
 
 ## Purchase List
@@ -300,7 +306,9 @@ ${prepList.purchaseList
               ([category, tasks]: [string, any]) => `
             <div class="category">
               <h3>${
-                category === "vegetable"
+                category === "Dishes"
+                  ? "🍽️"
+                  : category === "vegetable"
                   ? "🥕"
                   : category === "meat"
                   ? "🥩"
@@ -317,7 +325,7 @@ ${prepList.purchaseList
                   (task: any) => `
                 <div class="task">
                   <strong>${task.task}</strong>
-                  <div class="task-details">Quantity: ${task.quantity} ${task.unit} | Difficulty: Medium</div>
+                  <div class="task-details">${task.quantity != null && task.quantity > 0 && task.unit ? `Quantity: ${task.quantity} ${task.unit} | ` : ""}Difficulty: Medium</div>
                 </div>
               `
                 )
@@ -524,7 +532,14 @@ ${prepList.purchaseList
               {/* Event Selection */}
               <div className="space-y-2">
                 <Label htmlFor="event-select">Select Event</Label>
-                <Select value={selectedEvent} onValueChange={setSelectedEvent}>
+                <Select
+                  value={selectedEvent}
+                  onValueChange={(id) => {
+                    setSelectedEvent(id);
+                    const ev = events.find((e) => e.id === id);
+                    if (ev?.guestCount) setGuestCount(ev.guestCount);
+                  }}
+                >
                   <SelectTrigger>
                     <SelectValue placeholder="Choose an event" />
                   </SelectTrigger>
@@ -605,10 +620,11 @@ ${prepList.purchaseList
                 </div>
               </div>
 
-              {/* Guest Count */}
-              <div className="space-y-2">
-                <Label htmlFor="guestCount">Guest Count</Label>
-                <div className="flex items-center space-x-4">
+              {/* Guest Count & Portions per person */}
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="guestCount">Guest Count</Label>
+                  <div className="flex items-center space-x-4">
                   <Button
                     variant="outline"
                     size="sm"
@@ -636,6 +652,40 @@ ${prepList.purchaseList
                   <div className="flex items-center space-x-2 text-sm text-gray-600">
                     <Users className="h-4 w-4" />
                     <span>guests</span>
+                  </div>
+                </div>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="portionsPerPerson">Portions per person</Label>
+                  <div className="flex items-center space-x-4">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setPortionsPerPerson(Math.max(0.5, portionsPerPerson - 0.5))}
+                    >
+                      <Minus className="h-4 w-4" />
+                    </Button>
+                    <Input
+                      id="portionsPerPerson"
+                      type="number"
+                      step="0.5"
+                      min="0.5"
+                      value={portionsPerPerson}
+                      onChange={(e) =>
+                        setPortionsPerPerson(Math.max(0.5, parseFloat(e.target.value) || 1))
+                      }
+                      className="w-24 text-center"
+                    />
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setPortionsPerPerson(portionsPerPerson + 0.5)}
+                    >
+                      <Plus className="h-4 w-4" />
+                    </Button>
+                    <span className="text-sm text-gray-600">
+                      per guest (e.g. 2–3 for canapés)
+                    </span>
                   </div>
                 </div>
               </div>
@@ -742,11 +792,13 @@ ${prepList.purchaseList
                       <Card key={category}>
                         <CardHeader>
                           <CardTitle className="flex items-center gap-2 capitalize">
+                            {category === "Dishes" && "🍽️"}
                             {category === "vegetable" && "🥕"}
                             {category === "meat" && "🥩"}
                             {category === "condiment" && "🥫"}
                             {category === "carb" && "🌾"}
-                            {category === "other" && "📦"}
+                            {category === "dairy" && "🥛"}
+                            {(category === "other" || !["Dishes","vegetable","meat","condiment","carb","dairy"].includes(category)) && "📦"}
                             {category} ({tasks.length} tasks)
                           </CardTitle>
                         </CardHeader>
@@ -762,9 +814,11 @@ ${prepList.purchaseList
                                   <span className="font-medium">
                                     {task.task}
                                   </span>
-                                  <span className="text-sm text-gray-600">
-                                    ({task.quantity} {task.unit})
-                                  </span>
+                                  {task.quantity != null && task.quantity > 0 && task.unit ? (
+                                    <span className="text-sm text-gray-600">
+                                      ({task.quantity} {task.unit})
+                                    </span>
+                                  ) : null}
                                 </div>
                                 <Badge variant="secondary" className="text-xs">
                                   Medium

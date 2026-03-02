@@ -25,12 +25,14 @@ router.post("/inventory", async (req: AuthRequest, res) => {
     if (!name || unit === undefined) {
       return res.status(400).json({ error: "Name and unit are required" });
     }
+    const stock = Number(currentStock);
+    const minStock = Number(minimumStock);
     const item = await storage.createInventoryItem({
       organizationId: orgId,
       name: String(name).trim(),
-      currentStock: Number(currentStock) ?? 0,
+      currentStock: Number.isFinite(stock) ? stock : 0,
       unit: String(unit),
-      minimumStock: Number(minimumStock) ?? 0,
+      minimumStock: Number.isFinite(minStock) ? minStock : 0,
     });
     res.status(201).json(item);
   } catch (error) {
