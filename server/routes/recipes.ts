@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { storage, db } from "../storage";
+import { storage, db } from "../storage.js";
 import { authMiddleware, type AuthRequest } from "../middleware/auth.js";
 import {
   recipes,
@@ -11,7 +11,7 @@ import {
   insertRecipeIngredientSchema,
   insertRecipeSubRecipeSchema,
   type RecipeWithIngredients,
-} from "../../shared/schema";
+} from "../../shared/schema.js";
 import { eq, desc } from "drizzle-orm";
 
 const router = Router();

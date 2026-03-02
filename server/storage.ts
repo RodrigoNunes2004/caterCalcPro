@@ -2,7 +2,7 @@ import { drizzle } from "drizzle-orm/neon-http";
 import { neon } from "@neondatabase/serverless";
 import { eq, like, ilike, desc, asc, and, or, count } from "drizzle-orm";
 import { randomUUID } from "crypto";
-import * as schema from "../shared/schema";
+import * as schema from "../shared/schema.js";
 import { ensureAuthTables, ensureOrganizationIdColumns } from "./lib/ensureAuthTables.js";
 import {
   recipes,
@@ -29,7 +29,7 @@ import {
   type RecipeWithIngredients,
   type EventWithRecipes,
   type MenuWithRecipes,
-} from "../shared/schema";
+} from "../shared/schema.js";
 
 // PGLite is only loaded in development - avoids serverless crash (WASM/filesystem)
 let pgliteClient: import("@electric-sql/pglite").PGlite | null = null;

@@ -23,6 +23,16 @@ app.use(cookieParser());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+// Debug - no storage, runs before lazy-load
+app.get("/api/debug", (_req, res) => {
+  res.json({
+    ok: true,
+    hasDatabase: !!process.env.DATABASE_URL,
+    hasJwt: !!process.env.JWT_SECRET,
+    nodeEnv: process.env.NODE_ENV,
+  });
+});
+
 // Lazy-load routes; use Router so the first request also gets handled
 let apiRouter: Router | null = null;
 let routesLoadError: Error | null = null;

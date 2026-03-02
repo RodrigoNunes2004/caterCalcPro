@@ -1,10 +1,10 @@
 import { Router } from "express";
-import { storage } from "../storage";
+import { storage } from "../storage.js";
 import { authMiddleware, type AuthRequest } from "../middleware/auth.js";
 import {
   insertIngredientSchema,
   updateIngredientSchema,
-} from "../../shared/schema";
+} from "../../shared/schema.js";
 
 const router = Router();
 router.use(authMiddleware);
