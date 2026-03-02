@@ -233,6 +233,67 @@ export default function InventoryPage() {
     }
   };
 
+  const handleStartEdit = (item: InventoryItem) => {
+    setEditingItem(item);
+    setNewItem({
+      productName: item.productName,
+      category: item.category,
+      type: item.type || "",
+      location: item.location,
+      currentStock: item.currentStock,
+      unit: item.unit,
+      pricePerUnit: item.pricePerUnit,
+      gstInclusive: item.gstInclusive || false,
+      minimumStock: item.minimumStock,
+      supplier: item.supplier,
+      expiryDate: item.expiryDate || "",
+      notes: item.notes || "",
+    });
+    setShowAddDialog(true);
+  };
+
+  const handleSaveItem = async () => {
+    if (editingItem) {
+      if (!newItem.productName?.trim()) {
+        toast({ title: "Missing name", description: "Product name is required.", variant: "destructive" });
+        return;
+      }
+      setAddSubmitting(true);
+      try {
+        const res = await apiFetch(`/api/inventory/${editingItem.id}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name: newItem.productName.trim(),
+            currentStock: Number(newItem.currentStock) || 0,
+            unit: newItem.unit || "kg",
+            minimumStock: Number(newItem.minimumStock) || 0,
+          }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (res.ok) {
+          await fetchInventory();
+          setShowAddDialog(false);
+          setEditingItem(null);
+          setNewItem({ productName: "", category: "General", type: "", location: "Storage", currentStock: 0, unit: "kg", pricePerUnit: 0, gstInclusive: false, minimumStock: 0, supplier: "", expiryDate: "", notes: "" });
+          toast({ title: "Item updated", description: `${newItem.productName} updated.` });
+        } else {
+          const errMsg = res.status === 401
+            ? "Session expired. Please log in again."
+            : data?.error || "Could not update item. Please try again.";
+          toast({ title: "Failed to update", description: errMsg, variant: "destructive" });
+        }
+      } catch (e) {
+        console.error("Failed to update inventory:", e);
+        toast({ title: "Error", description: "Could not update item. Check your connection.", variant: "destructive" });
+      } finally {
+        setAddSubmitting(false);
+      }
+      return;
+    }
+    await handleAddItem();
+  };
+
   const handleUpdateStock = async (id: string, newStock: number) => {
     try {
       const res = await apiFetch(`/api/inventory/${id}`, {
@@ -657,7 +718,16 @@ export default function InventoryPage() {
                     </SelectContent>
                   </Select>
 
-                  <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
+                  <Dialog
+                    open={showAddDialog}
+                    onOpenChange={(open) => {
+                      setShowAddDialog(open);
+                      if (!open) {
+                        setEditingItem(null);
+                        setNewItem({ productName: "", category: "General", type: "", location: "Storage", currentStock: 0, unit: "kg", pricePerUnit: 0, gstInclusive: false, minimumStock: 0, supplier: "", expiryDate: "", notes: "" });
+                      }
+                    }}
+                  >
                     <DialogTrigger asChild>
                       <Button className="bg-orange-600 hover:bg-orange-700">
                         <Plus className="h-4 w-4 mr-2" />
@@ -666,9 +736,9 @@ export default function InventoryPage() {
                     </DialogTrigger>
                     <DialogContent className="max-w-md">
                       <DialogHeader>
-                        <DialogTitle>Add New Inventory Item</DialogTitle>
+                        <DialogTitle>{editingItem ? "Edit Inventory Item" : "Add New Inventory Item"}</DialogTitle>
                         <DialogDescription>
-                          Enter the details for the new inventory item
+                          {editingItem ? "Update details for this inventory item" : "Enter the details for the new inventory item"}
                         </DialogDescription>
                       </DialogHeader>
                       <div className="space-y-4">
@@ -870,12 +940,15 @@ export default function InventoryPage() {
                         </div>
 
                         <div className="flex space-x-2">
-                          <Button type="button" onClick={handleAddItem} className="flex-1" disabled={addSubmitting}>
-                            {addSubmitting ? "Adding..." : "Add Item"}
+                          <Button type="button" onClick={handleSaveItem} className="flex-1" disabled={addSubmitting}>
+                            {addSubmitting ? (editingItem ? "Saving..." : "Adding...") : (editingItem ? "Save Changes" : "Add Item")}
                           </Button>
                           <Button
                             variant="outline"
-                            onClick={() => setShowAddDialog(false)}
+                            onClick={() => {
+                              setShowAddDialog(false);
+                              setEditingItem(null);
+                            }}
                           >
                             Cancel
                           </Button>
@@ -1039,7 +1112,7 @@ export default function InventoryPage() {
                             </TableCell>
                             <TableCell>
                               <div className="flex space-x-1">
-                                <Button size="sm" variant="outline">
+                                <Button size="sm" variant="outline" onClick={() => handleStartEdit(item)}>
                                   <Edit className="h-3 w-3" />
                                 </Button>
                                 <Button

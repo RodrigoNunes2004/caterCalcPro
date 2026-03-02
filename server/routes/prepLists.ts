@@ -45,6 +45,7 @@ interface PrepTask {
 }
 
 interface InventoryItem {
+  id?: string;
   ingredientId: string;
   name: string;
   currentStock: number;
@@ -63,6 +64,27 @@ interface PurchaseItem {
 }
 
 type ListStatus = "in_preparation" | "done" | "archived";
+
+const INGREDIENT_NAME_STOP_WORDS = new Set([
+  "fresh",
+  "organic",
+  "free",
+  "range",
+  "extra",
+  "virgin",
+  "whole",
+  "full",
+  "cream",
+  "skim",
+  "low",
+  "fat",
+  "unsalted",
+  "salted",
+  "raw",
+  "large",
+  "small",
+  "medium",
+]);
 
 // Unit conversion utilities
 const UNIT_CONVERSIONS = {
@@ -189,6 +211,62 @@ function convertFromBaseUnit(
   }
 
   return quantity;
+}
+
+function normalizeIngredientToken(token: string): string {
+  if (token.endsWith("ies") && token.length > 3) return `${token.slice(0, -3)}y`;
+  if (token.endsWith("es") && token.length > 3) return token.slice(0, -2);
+  if (token.endsWith("s") && token.length > 3) return token.slice(0, -1);
+  return token;
+}
+
+function ingredientNameTokens(name: string): string[] {
+  return String(name || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, " ")
+    .split(/\s+/)
+    .map((token) => normalizeIngredientToken(token.trim()))
+    .filter((token) => token.length > 0 && !INGREDIENT_NAME_STOP_WORDS.has(token));
+}
+
+function isLikelyIngredientNameMatch(ingredientName: string, inventoryName: string): boolean {
+  const a = ingredientNameTokens(ingredientName);
+  const b = ingredientNameTokens(inventoryName);
+  if (a.length === 0 || b.length === 0) return false;
+  const aJoined = a.join(" ");
+  const bJoined = b.join(" ");
+  if (aJoined === bJoined) return true;
+
+  const aSet = new Set(a);
+  const bSet = new Set(b);
+  let overlap = 0;
+  for (const token of aSet) {
+    if (bSet.has(token)) overlap += 1;
+  }
+
+  const smallerSize = Math.min(aSet.size, bSet.size);
+  return overlap >= 1 && overlap >= smallerSize;
+}
+
+function findInventoryMatchByName(ingredientName: string, inventoryItems: InventoryItem[]): InventoryItem | undefined {
+  const exact = inventoryItems.find(
+    (item) => item.name.toLowerCase().trim() === ingredientName.toLowerCase().trim()
+  );
+  if (exact) return exact;
+
+  const candidates = inventoryItems.filter((item) =>
+    isLikelyIngredientNameMatch(ingredientName, item.name)
+  );
+  if (candidates.length === 0) return undefined;
+
+  // Prefer closest token-length candidate to reduce accidental broad matches.
+  const ingredientLen = ingredientNameTokens(ingredientName).length;
+  candidates.sort((left, right) => {
+    const lDiff = Math.abs(ingredientNameTokens(left.name).length - ingredientLen);
+    const rDiff = Math.abs(ingredientNameTokens(right.name).length - ingredientLen);
+    return lDiff - rDiff;
+  });
+  return candidates[0];
 }
 
 // Map ingredients to chef prep actions (chop, peel, dice, etc.)
@@ -401,9 +479,7 @@ router.post("/prep-lists", async (req: AuthRequest, res) => {
 
     const purchaseItems: PurchaseItem[] = [];
     for (const ingredient of scaledIngredients) {
-      const inventoryItem = inventoryItems.find(
-        (item) => item.name.toLowerCase().trim() === ingredient.name.toLowerCase().trim()
-      );
+      const inventoryItem = findInventoryMatchByName(ingredient.name, inventoryItems);
 
       if (!inventoryItem) {
         // Item not in inventory - needs to be purchased
@@ -517,21 +593,23 @@ function canConvertBetween(baseA: string, baseB: string): boolean {
 async function applyInventoryUsageForPrepList(prepList: any, orgId: string) {
   if (!prepList?.prepTasks?.length) return;
   const inventoryRows = await storage.getInventoryItems(orgId);
-  const itemsByName = new Map(
-    (inventoryRows || []).map((row: any) => [
-      String(row.name || "").toLowerCase().trim(),
-      row,
-    ])
-  );
+  const inventoryItems: InventoryItem[] = (inventoryRows || []).map((row: any) => ({
+    id: String(row.id || ""),
+    ingredientId: String(row.ingredient_id || row.ingredientId || ""),
+    name: String(row.name || ""),
+    currentStock: parseFloat(String(row.current_stock ?? row.currentStock ?? 0)) || 0,
+    unit: String(row.unit || ""),
+    minimumStock: parseFloat(String(row.minimum_stock ?? row.minimumStock ?? 0)) || 0,
+  }));
 
   for (const task of prepList.prepTasks as PrepTask[]) {
     if (!task?.ingredient || !task?.unit || task.quantity <= 0) continue;
     // Dish-level tasks are informational and should not deduct stock.
     if (task.unit.toLowerCase().trim() === "portions") continue;
 
-    const inv = itemsByName.get(task.ingredient.toLowerCase().trim());
+    const inv = findInventoryMatchByName(task.ingredient, inventoryItems);
     if (!inv) continue;
-    const currentStock = parseFloat(String(inv.current_stock ?? inv.currentStock ?? 0)) || 0;
+    const currentStock = parseFloat(String(inv.currentStock ?? 0)) || 0;
     const inventoryUnit = String(inv.unit || "");
     const { quantity: neededBase, baseUnit: neededBaseUnit } = convertToBaseUnit(task.quantity, task.unit);
     const { quantity: stockBase, baseUnit: stockBaseUnit } = convertToBaseUnit(currentStock, inventoryUnit);
@@ -539,7 +617,7 @@ async function applyInventoryUsageForPrepList(prepList: any, orgId: string) {
 
     const updatedBase = Math.max(0, stockBase - neededBase);
     const updatedStock = convertFromBaseUnit(updatedBase, stockBaseUnit, inventoryUnit);
-    await storage.updateInventoryItem(String(inv.id), orgId, { currentStock: updatedStock } as any);
+    await storage.updateInventoryItem(String((inv as any).id), orgId, { currentStock: updatedStock } as any);
   }
 }
 
