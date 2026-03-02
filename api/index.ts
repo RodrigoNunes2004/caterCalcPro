@@ -1,83 +1,53 @@
+import "dotenv/config";
 import express from "express";
 import cors from "cors";
+import cookieParser from "cookie-parser";
 import path from "path";
 import { fileURLToPath } from "url";
+
+// Initialize storage (runs migrations/schema for PGLite; no-op when DATABASE_URL is set)
+import "../server/storage.js";
+import authRoutes from "../server/routes/auth.js";
+import healthRoutes from "../server/routes/health.js";
+import recipeRoutes from "../server/routes/recipes.js";
+import ingredientsRoutes from "../server/routes/ingredients.js";
+import eventsRoutes from "../server/routes/events.js";
+import menuRoutes from "../server/routes/menus.js";
+import prepListRoutes from "../server/routes/prepLists.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
 
-// Middleware
-app.use(cors());
+// Middleware - must match server config for auth cookies
+app.use(cors({ origin: true, credentials: true }));
+app.use(cookieParser());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+// Mount API routes (same as server)
+app.use("/api", healthRoutes);
+app.use("/api", authRoutes);
+app.use("/api", recipeRoutes);
+app.use("/api", ingredientsRoutes);
+app.use("/api", eventsRoutes);
+app.use("/api", menuRoutes);
+app.use("/api", prepListRoutes);
 
 // Serve static files from the dist/public directory
 app.use(express.static(path.join(__dirname, "../dist/public")));
 
-// Health check endpoint
-app.get("/api/health", (req, res) => {
-  console.log("Health check endpoint called");
-  res.json({
-    status: "ok",
-    timestamp: new Date().toISOString(),
-    environment: process.env.NODE_ENV || "development",
-    database: process.env.DATABASE_URL ? "connected" : "not configured",
-  });
-});
-
-// Simple test endpoint
-app.get("/api/test", (req, res) => {
-  console.log("Test endpoint called");
-  res.json({ message: "API is working!" });
-});
-
-// Events endpoint (simplified)
-app.get("/api/events", (req, res) => {
-  console.log("Events endpoint called");
-  res.json([
-    {
-      id: "1",
-      name: "Sample Event",
-      description: "This is a test event",
-      eventDate: new Date().toISOString(),
-      venue: "Test Venue",
-      guestCount: 50,
-      status: "confirmed"
-    }
-  ]);
-});
-
-// Menus endpoint (simplified)
-app.get("/api/menus", (req, res) => {
-  console.log("Menus endpoint called");
-  res.json([
-    {
-      id: "1",
-      name: "Sample Menu",
-      description: "This is a test menu",
-      category: "test",
-      isActive: true,
-      totalCost: 100.0
-    }
-  ]);
-});
-
-// Catch-all route: send back React's index.html file for any non-API routes
-app.get("*", (req, res) => {
-  // If it's an API route, return 404
+// Catch-all: serve React app for non-API routes (Vercel also serves static directly)
+app.get("*", (req, res, next) => {
   if (req.path.startsWith("/api/")) {
-    console.log(`Unhandled API route: ${req.method} ${req.path}`);
-    res.status(404).json({ 
-      error: "Not found", 
+    res.status(404).json({
+      error: "Not found",
       path: req.path,
       method: req.method,
-      message: "This API route is not handled"
+      message: "This API route is not handled",
     });
   } else {
-    // For all other routes, serve the React app
-    console.log(`Serving React app for: ${req.path}`);
     res.sendFile(path.join(__dirname, "../dist/public/index.html"));
   }
 });

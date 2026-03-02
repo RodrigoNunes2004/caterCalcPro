@@ -41,7 +41,7 @@ export default function Navigation({
 
   const handleLogout = async () => {
     await logout();
-    navigate("/login");
+    navigate("/");
     setIsMobileMenuOpen(false);
   };
 
@@ -55,7 +55,6 @@ export default function Navigation({
 
   const navigationItems = [
     { path: "/", label: "Home", icon: ChefHat },
-    { path: "/landing", label: "Landing", icon: ChefHat },
     { path: "/recipes", label: "Recipes", icon: ChefHat },
     { path: "/menus", label: "Menus", icon: MenuIcon },
     { path: "/events", label: "Events", icon: Calendar },

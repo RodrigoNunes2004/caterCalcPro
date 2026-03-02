@@ -8,7 +8,7 @@ import {
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
 import { ThemeProvider } from "next-themes";
-import { AuthProvider } from "./contexts/AuthContext";
+import { AuthProvider, useAuth } from "./contexts/AuthContext";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 import HomePage from "./pages/HomePage";
 import RecipesPage from "./pages/RecipesPage";
@@ -25,6 +25,24 @@ import NotFound from "./pages/NotFound";
 import "./index.css";
 
 const queryClient = new QueryClient();
+
+function LandingOrHome({
+  landing,
+  home,
+}: {
+  landing: React.ReactNode;
+  home: React.ReactNode;
+}) {
+  const { user, isLoading } = useAuth();
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-600" />
+      </div>
+    );
+  }
+  return <>{user ? home : landing}</>;
+}
 
 function App() {
   return (
@@ -51,9 +69,10 @@ function App() {
                 <Route
                   path="/"
                   element={
-                    <ProtectedRoute>
-                      <HomePage />
-                    </ProtectedRoute>
+                    <LandingOrHome
+                      landing={<LandingPage />}
+                      home={<HomePage />}
+                    />
                   }
                 />
                 <Route
