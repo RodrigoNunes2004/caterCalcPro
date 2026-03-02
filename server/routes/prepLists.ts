@@ -333,11 +333,8 @@ router.post("/prep-lists", async (req: AuthRequest, res) => {
             finalUnit = userOverrides[ingredient.id].unit;
           }
 
-          // Extract prep tasks from recipe instructions, or default to "Prepare X"
-          let prepTasks = extractPrepTasks(recipe.instructions || "");
-          if (prepTasks.length === 0) {
-            prepTasks = [`Prepare ${ingredient.name} (${finalQuantity} ${finalUnit})`];
-          }
+          // One prep task per ingredient - avoid repeating instructions for every ingredient
+          const prepTasks = [`Prepare ${ingredient.name} (${finalQuantity} ${finalUnit})`];
 
           const key = ingredient.id;
           if (ingredientMap.has(key)) {
@@ -369,9 +366,7 @@ router.post("/prep-lists", async (req: AuthRequest, res) => {
             );
 
             existing.scaledQuantity = displayQuantity;
-            existing.prepTasks = [
-              ...Array.from(new Set([...existing.prepTasks, ...prepTasks])),
-            ];
+            existing.prepTasks = [`Prepare ${existing.name} (${displayQuantity} ${existing.scaledUnit})`];
           } else {
             // Create new ingredient entry
             const scaledIngredient: ScaledIngredient = {
@@ -409,36 +404,20 @@ router.post("/prep-lists", async (req: AuthRequest, res) => {
       }
     }
 
-    // Check inventory (mock for now - would integrate with actual inventory system)
-    const inventoryItems: InventoryItem[] = [
-      // Mock inventory data - in real implementation, this would come from database
-      {
-        ingredientId: "1",
-        name: "Onions",
-        currentStock: 5,
-        unit: "kg",
-        minimumStock: 2,
-      },
-      {
-        ingredientId: "2",
-        name: "Garlic",
-        currentStock: 1,
-        unit: "kg",
-        minimumStock: 0.5,
-      },
-      {
-        ingredientId: "3",
-        name: "Carrots",
-        currentStock: 3,
-        unit: "kg",
-        minimumStock: 1,
-      },
-    ];
+    // Fetch real inventory from database
+    const dbInventory = await storage.getInventory(orgId);
+    const inventoryItems: InventoryItem[] = dbInventory.map((row) => ({
+      ingredientId: "",
+      name: row.name,
+      currentStock: row.currentStock,
+      unit: row.unit,
+      minimumStock: row.minimumStock,
+    }));
 
     const purchaseItems: PurchaseItem[] = [];
     for (const ingredient of scaledIngredients) {
       const inventoryItem = inventoryItems.find(
-        (item) => item.name.toLowerCase() === ingredient.name.toLowerCase()
+        (item) => item.name.toLowerCase().trim() === ingredient.name.toLowerCase().trim()
       );
 
       if (!inventoryItem) {

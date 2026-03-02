@@ -7,6 +7,7 @@ import ingredientsRoutes from "./ingredients.js";
 import eventsRoutes from "./events.js";
 import menuRoutes from "./menus.js";
 import prepListRoutes from "./prepLists.js";
+import inventoryRoutes from "./inventory.js";
 
 export async function registerRoutes(app: Express) {
   const httpServer = createServer(app);
@@ -18,6 +19,7 @@ export async function registerRoutes(app: Express) {
   app.use("/api", eventsRoutes);
   app.use("/api", menuRoutes);
   app.use("/api", prepListRoutes);
+  app.use("/api", inventoryRoutes);
 
   return httpServer;
 }

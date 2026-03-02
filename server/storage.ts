@@ -14,6 +14,7 @@ import {
   menus,
   menuRecipes,
   organizations,
+  inventory,
   type Recipe,
   type Ingredient,
   type Event,
@@ -26,6 +27,7 @@ import {
   type UpdateEvent,
   type InsertMenu,
   type UpdateMenu,
+  type InsertInventory,
   type RecipeWithIngredients,
   type EventWithRecipes,
   type MenuWithRecipes,
@@ -298,10 +300,40 @@ async function ensureMenusTable() {
   }
 }
 
+// Ensure inventory table exists (PGLite)
+async function ensureInventoryTable() {
+  if (process.env.DATABASE_URL) return;
+  const client = getPgliteClient();
+  if (!client) return;
+
+  try {
+    await db.select().from(inventory).limit(1);
+  } catch (err: any) {
+    if (err?.message?.includes('relation "inventory" does not exist')) {
+      console.log("Running inventory migration...");
+      const migrationSql = `
+        CREATE TABLE IF NOT EXISTS "inventory" (
+          "id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+          "organization_id" uuid NOT NULL REFERENCES "organizations"("id") ON DELETE cascade,
+          "name" text NOT NULL,
+          "current_stock" numeric(10, 4) NOT NULL DEFAULT 0,
+          "unit" varchar(20) NOT NULL,
+          "minimum_stock" numeric(10, 4) DEFAULT 0,
+          "created_at" timestamp DEFAULT now() NOT NULL,
+          "updated_at" timestamp DEFAULT now() NOT NULL
+        );
+      `;
+      await client.exec(migrationSql);
+      console.log("Inventory migration completed");
+    }
+  }
+}
+
 // Run schema sync then sample data
 export async function initStorage(): Promise<void> {
   await ensureAuthTables();
   await ensureMenusTable();
+  await ensureInventoryTable();
   await ensureOrganizationIdColumns();
   await safeInitializeSampleData();
 }
@@ -535,6 +567,61 @@ export const storage = {
       .values(data as any)
       .returning();
     return result;
+  },
+
+  // Inventory operations (for prep list stock checking)
+  async getInventory(organizationId: string): Promise<Array<{ name: string; currentStock: number; unit: string; minimumStock: number }>> {
+    try {
+      const rows = await db
+        .select({
+          name: inventory.name,
+          currentStock: inventory.currentStock,
+          unit: inventory.unit,
+          minimumStock: inventory.minimumStock,
+        })
+        .from(inventory)
+        .where(eq(inventory.organizationId, organizationId));
+      return rows.map((r) => ({
+        name: r.name,
+        currentStock: parseFloat(String(r.currentStock ?? 0)),
+        unit: r.unit,
+        minimumStock: parseFloat(String(r.minimumStock ?? 0)),
+      }));
+    } catch (err) {
+      return [];
+    }
+  },
+
+  async createInventoryItem(data: { organizationId: string; name: string; currentStock?: number; unit: string; minimumStock?: number }): Promise<any> {
+    const result = await db
+      .insert(inventory)
+      .values({ ...data, updatedAt: new Date() } as any)
+      .returning();
+    return result[0];
+  },
+
+  async updateInventoryItem(id: string, organizationId: string, data: Partial<InsertInventory>): Promise<any> {
+    const result = await db
+      .update(inventory)
+      .set({ ...data, updatedAt: new Date() } as any)
+      .where(and(eq(inventory.id, id), eq(inventory.organizationId, organizationId)))
+      .returning();
+    return result[0] || null;
+  },
+
+  async getInventoryItems(organizationId: string): Promise<any[]> {
+    return db
+      .select()
+      .from(inventory)
+      .where(eq(inventory.organizationId, organizationId))
+      .orderBy(asc(inventory.name));
+  },
+
+  async deleteInventoryItem(id: string, organizationId: string): Promise<boolean> {
+    const result = await db
+      .delete(inventory)
+      .where(and(eq(inventory.id, id), eq(inventory.organizationId, organizationId)));
+    return (result as any).rowCount > 0;
   },
 
   // Event operations

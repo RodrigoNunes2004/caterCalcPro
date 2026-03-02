@@ -152,6 +152,20 @@ export const menus = pgTable("menus", {
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
+// Inventory (stock levels for prep list / shopping list)
+export const inventory = pgTable("inventory", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  organizationId: uuid("organization_id")
+    .references(() => organizations.id, { onDelete: "cascade" })
+    .notNull(),
+  name: text("name").notNull(), // product/ingredient name for matching recipes
+  currentStock: decimal("current_stock", { precision: 10, scale: 4 }).notNull().default("0"),
+  unit: varchar("unit", { length: 20 }).notNull(),
+  minimumStock: decimal("minimum_stock", { precision: 10, scale: 4 }).default("0"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
 // Menu-Recipe relationships (which recipes are included in which menus)
 export const menuRecipes = pgTable("menu_recipes", {
   id: uuid("id").defaultRandom().primaryKey(),
@@ -202,6 +216,10 @@ export const updateMenuSchema = insertMenuSchema.partial();
 export const insertMenuRecipeSchema = createInsertSchema(menuRecipes);
 export const selectMenuRecipeSchema = createSelectSchema(menuRecipes);
 
+export const insertInventorySchema = createInsertSchema(inventory);
+export const selectInventorySchema = createSelectSchema(inventory);
+export const updateInventorySchema = insertInventorySchema.partial();
+
 // TypeScript types
 export type Organization = z.infer<typeof selectOrganizationSchema>;
 export type InsertOrganization = z.infer<typeof insertOrganizationSchema>;
@@ -237,6 +255,9 @@ export type UpdateMenu = z.infer<typeof updateMenuSchema>;
 
 export type MenuRecipe = z.infer<typeof selectMenuRecipeSchema>;
 export type InsertMenuRecipe = z.infer<typeof insertMenuRecipeSchema>;
+
+export type Inventory = z.infer<typeof selectInventorySchema>;
+export type InsertInventory = z.infer<typeof insertInventorySchema>;
 
 // Extended types for API responses with relationships
 export type RecipeWithIngredients = Recipe & {

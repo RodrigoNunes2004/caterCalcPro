@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Package,
@@ -69,6 +69,7 @@ import {
   removeGST,
   getGSTFromInclusive,
 } from "@/lib/gstCalculation";
+import { apiFetch } from "@/lib/api";
 import Navigation from "@/components/Navigator";
 
 interface InventoryItem {
@@ -88,82 +89,28 @@ interface InventoryItem {
   notes?: string;
 }
 
-const MOCK_INVENTORY: InventoryItem[] = [
-  {
-    id: "1",
-    productName: "Salmon Fillets",
-    category: "Fish & Seafood",
-    type: "Fresh Seafood",
-    location: "Main Fridge",
-    currentStock: 12.5,
-    unit: "kg",
-    pricePerUnit: 28.5,
-    minimumStock: 5,
-    supplier: "Ocean Fresh Seafood",
-    expiryDate: "2024-01-20",
-    lastUpdated: "2024-01-15",
-    notes: "Premium Atlantic salmon",
-  },
-  {
-    id: "2",
-    productName: "Organic Flour",
-    category: "Dry Goods",
-    type: "Baking Ingredients",
-    location: "Dry Storage Shelf",
-    currentStock: 25,
-    unit: "kg",
-    pricePerUnit: 3.2,
-    minimumStock: 10,
-    supplier: "Organic Mills Co.",
-    lastUpdated: "2024-01-14",
-  },
-  {
-    id: "3",
-    productName: "Butter",
-    category: "Dairy",
-    type: "Dairy Products",
-    location: "Main Fridge",
-    currentStock: 8,
-    unit: "kg",
-    pricePerUnit: 12.75,
-    minimumStock: 3,
-    supplier: "Farm Fresh Dairy",
-    expiryDate: "2024-01-25",
-    lastUpdated: "2024-01-15",
-  },
-  {
-    id: "4",
-    productName: "Frozen Berries Mix",
-    category: "Fruits",
-    type: "Frozen Produce",
-    location: "Chest Freezer",
-    currentStock: 15,
-    unit: "kg",
-    pricePerUnit: 8.9,
-    minimumStock: 5,
-    supplier: "Berry Best Frozen",
-    lastUpdated: "2024-01-13",
-  },
-  {
-    id: "5",
-    productName: "Extra Virgin Olive Oil",
-    category: "Oils & Vinegars",
-    type: "Cooking Oils",
-    location: "Pantry Downstairs",
-    currentStock: 6,
-    unit: "l",
-    pricePerUnit: 22.0,
-    minimumStock: 2,
-    supplier: "Mediterranean Imports",
-    lastUpdated: "2024-01-12",
-  },
-];
-
-// Location constants removed - now supporting flexible custom locations
+function mapApiToItem(row: { id: string; name: string; currentStock: number | string; unit: string; minimumStock?: number | string; updatedAt?: string }): InventoryItem {
+  const stock = typeof row.currentStock === "string" ? parseFloat(row.currentStock) : row.currentStock;
+  const minStock = typeof row.minimumStock === "string" ? parseFloat(row.minimumStock) : (row.minimumStock ?? 0);
+  return {
+    id: row.id,
+    productName: row.name,
+    category: "General",
+    type: "",
+    location: "Storage",
+    currentStock: stock,
+    unit: row.unit,
+    pricePerUnit: 0,
+    minimumStock: minStock,
+    supplier: "",
+    lastUpdated: row.updatedAt ? new Date(row.updatedAt).toISOString().split("T")[0] : new Date().toISOString().split("T")[0],
+  };
+}
 
 export default function InventoryPage() {
   const navigate = useNavigate();
-  const [inventory, setInventory] = useState<InventoryItem[]>(MOCK_INVENTORY);
+  const [inventory, setInventory] = useState<InventoryItem[]>([]);
+  const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [filterLocation, setFilterLocation] = useState<string>("all");
   const [filterCategory, setFilterCategory] = useState<string>("all");
@@ -173,9 +120,9 @@ export default function InventoryPage() {
 
   const [newItem, setNewItem] = useState<Partial<InventoryItem>>({
     productName: "",
-    category: "",
+    category: "General",
     type: "",
-    location: "",
+    location: "Storage",
     currentStock: 0,
     unit: "kg",
     pricePerUnit: 0,
@@ -185,6 +132,25 @@ export default function InventoryPage() {
     expiryDate: "",
     notes: "",
   });
+
+  const fetchInventory = useCallback(async () => {
+    try {
+      const res = await apiFetch("/api/inventory");
+      if (res.ok) {
+        const data = await res.json();
+        setInventory(Array.isArray(data) ? data.map(mapApiToItem) : []);
+      }
+    } catch (e) {
+      console.error("Failed to fetch inventory:", e);
+      setInventory([]);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchInventory();
+  }, [fetchInventory]);
 
   const filteredInventory = inventory.filter((item) => {
     const matchesSearch =
@@ -227,60 +193,58 @@ export default function InventoryPage() {
     };
   };
 
-  const handleAddItem = () => {
-    if (newItem.productName && newItem.category && newItem.location) {
-      const item: InventoryItem = {
-        id: Date.now().toString(),
-        productName: newItem.productName!,
-        category: newItem.category!,
-        type: newItem.type || "",
-        location: newItem.location!,
-        currentStock: newItem.currentStock || 0,
-        unit: newItem.unit || "kg",
-        pricePerUnit: newItem.pricePerUnit || 0,
-        gstInclusive: newItem.gstInclusive || false,
-        minimumStock: newItem.minimumStock || 0,
-        supplier: newItem.supplier || "",
-        expiryDate: newItem.expiryDate,
-        lastUpdated: new Date().toISOString().split("T")[0],
-        notes: newItem.notes,
-      };
-
-      setInventory([...inventory, item]);
-      setNewItem({
-        productName: "",
-        category: "",
-        type: "",
-        location: "",
-        currentStock: 0,
-        unit: "kg",
-        pricePerUnit: 0,
-        gstInclusive: false,
-        minimumStock: 0,
-        supplier: "",
-        expiryDate: "",
-        notes: "",
+  const handleAddItem = async () => {
+    if (!newItem.productName?.trim()) return;
+    try {
+      const res = await apiFetch("/api/inventory", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: newItem.productName.trim(),
+          currentStock: newItem.currentStock ?? 0,
+          unit: newItem.unit || "kg",
+          minimumStock: newItem.minimumStock ?? 0,
+        }),
       });
-      setShowAddDialog(false);
+      if (res.ok) {
+        const created = await res.json();
+        setInventory([...inventory, mapApiToItem(created)]);
+        setNewItem({ productName: "", category: "General", type: "", location: "Storage", currentStock: 0, unit: "kg", pricePerUnit: 0, gstInclusive: false, minimumStock: 0, supplier: "", expiryDate: "", notes: "" });
+        setShowAddDialog(false);
+      }
+    } catch (e) {
+      console.error("Failed to add inventory:", e);
     }
   };
 
-  const handleUpdateStock = (id: string, newStock: number) => {
-    setInventory(
-      inventory.map((item) =>
-        item.id === id
-          ? {
-              ...item,
-              currentStock: newStock,
-              lastUpdated: new Date().toISOString().split("T")[0],
-            }
-          : item
-      )
-    );
+  const handleUpdateStock = async (id: string, newStock: number) => {
+    try {
+      const res = await apiFetch(`/api/inventory/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ currentStock: newStock }),
+      });
+      if (res.ok) {
+        setInventory(
+          inventory.map((item) =>
+            item.id === id ? { ...item, currentStock: newStock, lastUpdated: new Date().toISOString().split("T")[0] } : item
+          )
+        );
+      }
+    } catch (e) {
+      console.error("Failed to update stock:", e);
+    }
   };
 
-  const handleDeleteItem = (id: string) => {
-    setInventory(inventory.filter((item) => item.id !== id));
+  const handleDeleteItem = async (id: string) => {
+    try {
+      const res = await apiFetch(`/api/inventory/${id}`, { method: "DELETE" });
+      if (res.ok || res.status === 204) {
+        setInventory(inventory.filter((item) => item.id !== id));
+      }
+    } catch (e) {
+      console.error("Failed to delete item:", e);
+    }
   };
 
   const handleExportCSV = () => {
@@ -483,6 +447,10 @@ export default function InventoryPage() {
       </div>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {loading ? (
+          <div className="flex items-center justify-center py-16 text-muted-foreground">Loading inventory...</div>
+        ) : (
+        <>
         {/* GST Display Toggle */}
         <div className="mb-6">
           <Card>
@@ -1215,6 +1183,8 @@ export default function InventoryPage() {
             </div>
           </TabsContent>
         </Tabs>
+        </>
+        )}
       </div>
     </div>
   );

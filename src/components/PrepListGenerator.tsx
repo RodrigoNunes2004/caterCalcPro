@@ -137,6 +137,7 @@ export default function PrepListGenerator({ onSave }: PrepListGeneratorProps) {
     try {
       const response = await fetch("/api/prep-lists", {
         method: "POST",
+        credentials: "include",
         headers: {
           "Content-Type": "application/json",
         },
@@ -145,7 +146,6 @@ export default function PrepListGenerator({ onSave }: PrepListGeneratorProps) {
           menuIds: selectedMenus,
           guestCount: guestCount,
         }),
-        credentials: "include",
       });
 
       if (response.ok) {
