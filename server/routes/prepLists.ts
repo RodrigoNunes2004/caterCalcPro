@@ -35,11 +35,13 @@ interface ScaledIngredient {
 }
 
 interface PrepTask {
+  id?: string;
   task: string;
   ingredient: string;
   quantity: number;
   unit: string;
   category: string;
+  isManual?: boolean;
 }
 
 interface InventoryItem {
@@ -51,6 +53,7 @@ interface InventoryItem {
 }
 
 interface PurchaseItem {
+  id?: string;
   ingredientId: string;
   name: string;
   neededQuantity: number;
@@ -58,6 +61,8 @@ interface PurchaseItem {
   currentStock: number;
   shortfall: number;
 }
+
+type ListStatus = "in_preparation" | "done" | "archived";
 
 // Unit conversion utilities
 const UNIT_CONVERSIONS = {
@@ -446,42 +451,45 @@ router.post("/prep-lists", async (req: AuthRequest, res) => {
       }
     }
 
-    // Generate the prep list response
-    const prepList = {
+    const created = await storage.createPrepListRecord({
+      organizationId: orgId,
       eventId,
       eventName: event.name,
       guestCount,
       portionsPerPerson,
+      prepTasks: prepTasks.map((task) => ({
+        task: task.task,
+        ingredient: task.ingredient,
+        quantity: Math.round(task.quantity * 100) / 100,
+        unit: task.unit,
+        category: task.category,
+      })),
+      purchaseItems: purchaseItems.map((item) => ({
+        ingredient: item.name,
+        ingredientId: item.ingredientId,
+        needed: Math.round(item.neededQuantity * 100) / 100,
+        unit: item.unit,
+        currentStock: Math.round(item.currentStock * 100) / 100,
+        shortfall: Math.round(item.shortfall * 100) / 100,
+        category: "other",
+      })),
+    });
+
+    if (!created) {
+      return res.status(500).json({ error: "Failed to persist prep list" });
+    }
+
+    const response = {
+      ...created,
       menus: menusList.map((menu) => ({
         id: menu.id,
         name: menu.name,
         category: menu.category,
       })),
-      generatedAt: new Date().toISOString(),
-      prepTasks: prepTasks.map((task) => ({
-        task: task.task,
-        ingredient: task.ingredient,
-        quantity: Math.round(task.quantity * 100) / 100, // Round to 2 decimal places
-        unit: task.unit,
-        category: task.category,
-      })),
-      purchaseList: purchaseItems.map((item) => ({
-        ingredient: item.name,
-        needed: Math.round(item.neededQuantity * 100) / 100,
-        unit: item.unit,
-        currentStock: Math.round(item.currentStock * 100) / 100,
-        shortfall: Math.round(item.shortfall * 100) / 100,
-      })),
-      summary: {
-        totalIngredients: scaledIngredients.length,
-        totalPrepTasks: prepTasks.length,
-        itemsToPurchase: purchaseItems.length,
-        estimatedPrepTime: Math.ceil(prepTasks.length * 5), // Rough estimate: 5 minutes per task
-      },
     };
 
-    console.log("Generated prep list:", prepList);
-    res.json(prepList);
+    console.log("Generated prep list:", response.id);
+    res.json(response);
   } catch (error) {
     console.error("Error generating prep list:", error);
     res.status(500).json({ error: "Failed to generate prep list" });
@@ -492,11 +500,110 @@ router.post("/prep-lists", async (req: AuthRequest, res) => {
 router.get("/prep-lists/:id", async (req: AuthRequest, res) => {
   try {
     const { id } = req.params;
-    // In a real implementation, this would fetch from database
-    res.status(404).json({ error: "Prep list not found" });
+    const orgId = req.auth!.organizationId;
+    const prepList = await storage.getPrepListRecord(id, orgId);
+    if (!prepList) return res.status(404).json({ error: "Prep list not found" });
+    res.json(prepList);
   } catch (error) {
     console.error("Error fetching prep list:", error);
     res.status(500).json({ error: "Failed to fetch prep list" });
+  }
+});
+
+function canConvertBetween(baseA: string, baseB: string): boolean {
+  return baseA === baseB;
+}
+
+async function applyInventoryUsageForPrepList(prepList: any, orgId: string) {
+  if (!prepList?.prepTasks?.length) return;
+  const inventoryRows = await storage.getInventoryItems(orgId);
+  const itemsByName = new Map(
+    (inventoryRows || []).map((row: any) => [
+      String(row.name || "").toLowerCase().trim(),
+      row,
+    ])
+  );
+
+  for (const task of prepList.prepTasks as PrepTask[]) {
+    if (!task?.ingredient || !task?.unit || task.quantity <= 0) continue;
+    // Dish-level tasks are informational and should not deduct stock.
+    if (task.unit.toLowerCase().trim() === "portions") continue;
+
+    const inv = itemsByName.get(task.ingredient.toLowerCase().trim());
+    if (!inv) continue;
+    const currentStock = parseFloat(String(inv.current_stock ?? inv.currentStock ?? 0)) || 0;
+    const inventoryUnit = String(inv.unit || "");
+    const { quantity: neededBase, baseUnit: neededBaseUnit } = convertToBaseUnit(task.quantity, task.unit);
+    const { quantity: stockBase, baseUnit: stockBaseUnit } = convertToBaseUnit(currentStock, inventoryUnit);
+    if (!canConvertBetween(neededBaseUnit, stockBaseUnit)) continue;
+
+    const updatedBase = Math.max(0, stockBase - neededBase);
+    const updatedStock = convertFromBaseUnit(updatedBase, stockBaseUnit, inventoryUnit);
+    await storage.updateInventoryItem(String(inv.id), orgId, { currentStock: updatedStock } as any);
+  }
+}
+
+router.patch("/prep-lists/:id/status", async (req: AuthRequest, res) => {
+  try {
+    const orgId = req.auth!.organizationId;
+    const { id } = req.params;
+    const { kind, status } = req.body as { kind: "prep" | "purchase"; status: ListStatus };
+
+    if (!["prep", "purchase"].includes(kind)) {
+      return res.status(400).json({ error: "kind must be 'prep' or 'purchase'" });
+    }
+    if (!["in_preparation", "done", "archived"].includes(status)) {
+      return res.status(400).json({ error: "Invalid status" });
+    }
+
+    const existing = await storage.getPrepListRecord(id, orgId);
+    if (!existing) return res.status(404).json({ error: "Prep list not found" });
+
+    if (kind === "prep" && status === "done" && !existing.prepInventoryApplied) {
+      await applyInventoryUsageForPrepList(existing, orgId);
+      await storage.markPrepInventoryApplied(id, orgId);
+    }
+
+    const updated = await storage.updatePrepListStatus({ id, organizationId: orgId, kind, status });
+    res.json(updated);
+  } catch (error) {
+    console.error("Error updating prep list status:", error);
+    res.status(500).json({ error: "Failed to update prep list status" });
+  }
+});
+
+router.post("/prep-lists/:id/manual-tasks", async (req: AuthRequest, res) => {
+  try {
+    const orgId = req.auth!.organizationId;
+    const { id } = req.params;
+    const { task, ingredient, quantity, unit, category } = req.body as {
+      task: string;
+      ingredient: string;
+      quantity: number;
+      unit: string;
+      category?: string;
+    };
+    if (!task?.trim() || !ingredient?.trim() || !unit?.trim()) {
+      return res.status(400).json({ error: "task, ingredient and unit are required" });
+    }
+    const qty = Number(quantity);
+    if (!Number.isFinite(qty) || qty <= 0) {
+      return res.status(400).json({ error: "quantity must be a positive number" });
+    }
+    const updated = await storage.addManualPrepTask({
+      prepListId: id,
+      organizationId: orgId,
+      task: task.trim(),
+      ingredient: ingredient.trim(),
+      quantity: qty,
+      unit: unit.trim(),
+      category: category?.trim() || "other",
+    });
+    if (!updated) return res.status(404).json({ error: "Prep list not found" });
+    res.status(201).json(updated);
+  } catch (error) {
+    console.error("Error adding manual prep task:", error);
+    res.status(500).json({ error: "Failed to add manual prep task" });
   }
 });
 

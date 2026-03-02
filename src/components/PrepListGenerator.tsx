@@ -14,6 +14,7 @@ import {
   List,
   ShoppingCart,
   Printer,
+  Archive,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -59,6 +60,8 @@ interface PrepListGeneratorProps {
   onSave?: (prepList: any) => void;
 }
 
+type WorkflowStatus = "in_preparation" | "done" | "archived";
+
 export default function PrepListGenerator({ onSave }: PrepListGeneratorProps) {
   const { toast } = useToast();
   const [events, setEvents] = useState<Event[]>([]);
@@ -73,6 +76,14 @@ export default function PrepListGenerator({ onSave }: PrepListGeneratorProps) {
   const [prepList, setPrepList] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<string>("setup");
+  const [statusUpdating, setStatusUpdating] = useState(false);
+  const [manualTask, setManualTask] = useState({
+    task: "",
+    ingredient: "",
+    quantity: 0,
+    unit: "g",
+    category: "other",
+  });
 
   // Fetch events and menus
   useEffect(() => {
@@ -176,13 +187,106 @@ export default function PrepListGenerator({ onSave }: PrepListGeneratorProps) {
     }
   };
 
+  const updateListStatus = async (
+    kind: "prep" | "purchase",
+    status: WorkflowStatus
+  ) => {
+    if (!prepList?.id) return;
+    setStatusUpdating(true);
+    try {
+      const response = await fetch(`/api/prep-lists/${prepList.id}/status`, {
+        method: "PATCH",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ kind, status }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(data?.error || "Failed to update status");
+      }
+      setPrepList((prev: any) => ({ ...data, menus: data.menus || prev?.menus || [] }));
+      toast({
+        title: "Status updated",
+        description:
+          kind === "prep" && status === "done"
+            ? "Prep list marked done and inventory has been updated."
+            : "List status updated successfully.",
+      });
+    } catch (error: any) {
+      toast({
+        title: "Status update failed",
+        description: error?.message || "Could not update status.",
+        variant: "destructive",
+      });
+    } finally {
+      setStatusUpdating(false);
+    }
+  };
+
+  const addManualTask = async () => {
+    if (!prepList?.id) return;
+    if (!manualTask.task.trim() || !manualTask.ingredient.trim() || !manualTask.unit.trim()) {
+      toast({
+        title: "Missing fields",
+        description: "Task, ingredient and unit are required.",
+        variant: "destructive",
+      });
+      return;
+    }
+    const qty = Number(manualTask.quantity);
+    if (!Number.isFinite(qty) || qty <= 0) {
+      toast({
+        title: "Invalid quantity",
+        description: "Quantity must be greater than zero.",
+        variant: "destructive",
+      });
+      return;
+    }
+    try {
+      const response = await fetch(`/api/prep-lists/${prepList.id}/manual-tasks`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          task: manualTask.task,
+          ingredient: manualTask.ingredient,
+          quantity: qty,
+          unit: manualTask.unit,
+          category: manualTask.category,
+        }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(data?.error || "Failed to add task");
+      }
+      setPrepList((prev: any) => ({ ...data, menus: data.menus || prev?.menus || [] }));
+      setManualTask({
+        task: "",
+        ingredient: "",
+        quantity: 0,
+        unit: "g",
+        category: "other",
+      });
+      toast({
+        title: "Task added",
+        description: "Manual chef task added to prep list.",
+      });
+    } catch (error: any) {
+      toast({
+        title: "Failed to add task",
+        description: error?.message || "Could not add manual task.",
+        variant: "destructive",
+      });
+    }
+  };
+
   const exportPrepList = () => {
     if (!prepList) return;
 
     const content = `# Prep List - ${prepList.eventName}
 Generated: ${new Date(prepList.generatedAt).toLocaleString()}
 Guest Count: ${prepList.guestCount}
-Menus: ${prepList.menus.map((m: any) => m.name).join(", ")}
+Menus: ${(prepList.menus || []).map((m: any) => m.name).join(", ")}
 
 ## Prep Tasks
 ${prepList.prepTasks
@@ -295,7 +399,7 @@ ${prepList.purchaseList
               prepList.generatedAt
             ).toLocaleString()}</p>
             <p><strong>Guest Count:</strong> ${prepList.guestCount}</p>
-            <p><strong>Menus:</strong> ${prepList.menus
+            <p><strong>Menus:</strong> ${(prepList.menus || [])
               .map((m: any) => m.name)
               .join(", ")}</p>
             <p><strong>Total Tasks:</strong> ${prepList.prepTasks.length}</p>
@@ -406,7 +510,7 @@ ${prepList.purchaseList
               prepList.generatedAt
             ).toLocaleString()}</p>
             <p><strong>Guest Count:</strong> ${prepList.guestCount}</p>
-            <p><strong>Menus:</strong> ${prepList.menus
+            <p><strong>Menus:</strong> ${(prepList.menus || [])
               .map((m: any) => m.name)
               .join(", ")}</p>
             <p><strong>Total Items:</strong> ${prepList.purchaseList.length}</p>
@@ -751,7 +855,23 @@ ${prepList.purchaseList
                           {prepList.guestCount} guests
                         </p>
                       </div>
-                      <div className="flex space-x-2">
+                      <div className="flex items-center space-x-2">
+                        <Select
+                          value={prepList.prepStatus || "in_preparation"}
+                          onValueChange={(value) =>
+                            updateListStatus("prep", value as WorkflowStatus)
+                          }
+                          disabled={statusUpdating}
+                        >
+                          <SelectTrigger className="w-[190px]">
+                            <SelectValue placeholder="Prep status" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="in_preparation">In preparation</SelectItem>
+                            <SelectItem value="done">Done</SelectItem>
+                            <SelectItem value="archived">Archived</SelectItem>
+                          </SelectContent>
+                        </Select>
                         <Button
                           onClick={exportPrepList}
                           variant="outline"
@@ -778,6 +898,54 @@ ${prepList.purchaseList
                         </Button>
                       </div>
                     </div>
+
+                    <Card>
+                      <CardHeader>
+                        <CardTitle className="text-base">Add Manual Chef Task</CardTitle>
+                        <CardDescription>
+                          Add extra work not tied to recipes. This is deducted from inventory when prep is marked done.
+                        </CardDescription>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
+                          <Input
+                            placeholder="Task (e.g. Chop extra herbs)"
+                            value={manualTask.task}
+                            onChange={(e) =>
+                              setManualTask((prev) => ({ ...prev, task: e.target.value }))
+                            }
+                          />
+                          <Input
+                            placeholder="Ingredient"
+                            value={manualTask.ingredient}
+                            onChange={(e) =>
+                              setManualTask((prev) => ({ ...prev, ingredient: e.target.value }))
+                            }
+                          />
+                          <Input
+                            type="number"
+                            min="0"
+                            step="0.1"
+                            placeholder="Qty"
+                            value={manualTask.quantity || ""}
+                            onChange={(e) =>
+                              setManualTask((prev) => ({
+                                ...prev,
+                                quantity: parseFloat(e.target.value) || 0,
+                              }))
+                            }
+                          />
+                          <Input
+                            placeholder="Unit (g, ml, cup...)"
+                            value={manualTask.unit}
+                            onChange={(e) =>
+                              setManualTask((prev) => ({ ...prev, unit: e.target.value }))
+                            }
+                          />
+                          <Button onClick={addManualTask}>Add Task</Button>
+                        </div>
+                      </CardContent>
+                    </Card>
 
                     {/* Group tasks by category */}
                     {Object.entries(
@@ -820,9 +988,16 @@ ${prepList.purchaseList
                                     </span>
                                   ) : null}
                                 </div>
-                                <Badge variant="secondary" className="text-xs">
-                                  Medium
-                                </Badge>
+                                <div className="flex items-center gap-2">
+                                  {task.isManual && (
+                                    <Badge variant="outline" className="text-xs">
+                                      Manual
+                                    </Badge>
+                                  )}
+                                  <Badge variant="secondary" className="text-xs">
+                                    Medium
+                                  </Badge>
+                                </div>
                               </div>
                             ))}
                           </div>
@@ -875,7 +1050,23 @@ ${prepList.purchaseList
                             Estimated cost
                           </div>
                         </div>
-                        <div className="flex space-x-2">
+                        <div className="flex items-center space-x-2">
+                          <Select
+                            value={prepList.purchaseStatus || "in_preparation"}
+                            onValueChange={(value) =>
+                              updateListStatus("purchase", value as WorkflowStatus)
+                            }
+                            disabled={statusUpdating}
+                          >
+                            <SelectTrigger className="w-[190px]">
+                              <SelectValue placeholder="Purchase status" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="in_preparation">In preparation</SelectItem>
+                              <SelectItem value="done">Done</SelectItem>
+                              <SelectItem value="archived">Archived</SelectItem>
+                            </SelectContent>
+                          </Select>
                           <Button
                             onClick={exportPurchaseList}
                             variant="outline"
@@ -891,6 +1082,14 @@ ${prepList.purchaseList
                           >
                             <Printer className="h-4 w-4 mr-2" />
                             Print
+                          </Button>
+                          <Button
+                            onClick={() => updateListStatus("purchase", "archived")}
+                            variant="outline"
+                            size="sm"
+                          >
+                            <Archive className="h-4 w-4 mr-2" />
+                            Archive
                           </Button>
                         </div>
                       </div>

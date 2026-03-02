@@ -327,11 +327,49 @@ async function ensureInventoryTable() {
 
 }
 
+// Persisted prep/purchase workflow tables
+async function ensurePrepWorkflowTables() {
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS "prep_lists" (
+      "id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+      "organization_id" uuid NOT NULL REFERENCES "organizations"("id") ON DELETE cascade,
+      "event_id" uuid,
+      "event_name" text NOT NULL,
+      "guest_count" integer NOT NULL DEFAULT 0,
+      "portions_per_person" numeric(10, 2) NOT NULL DEFAULT 1,
+      "prep_status" varchar(20) NOT NULL DEFAULT 'in_preparation',
+      "purchase_status" varchar(20) NOT NULL DEFAULT 'in_preparation',
+      "prep_inventory_applied" boolean NOT NULL DEFAULT false,
+      "created_at" timestamp DEFAULT now() NOT NULL,
+      "updated_at" timestamp DEFAULT now() NOT NULL
+    );
+  `);
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS "prep_list_items" (
+      "id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+      "prep_list_id" uuid NOT NULL REFERENCES "prep_lists"("id") ON DELETE cascade,
+      "kind" varchar(20) NOT NULL,
+      "task" text NOT NULL,
+      "ingredient" text NOT NULL,
+      "ingredient_id" uuid,
+      "quantity" numeric(12, 4) NOT NULL DEFAULT 0,
+      "unit" varchar(30) NOT NULL,
+      "category" varchar(60) DEFAULT 'other',
+      "needed" numeric(12, 4),
+      "current_stock" numeric(12, 4),
+      "shortfall" numeric(12, 4),
+      "is_manual" boolean NOT NULL DEFAULT false,
+      "created_at" timestamp DEFAULT now() NOT NULL
+    );
+  `);
+}
+
 // Run schema sync then sample data
 export async function initStorage(): Promise<void> {
   await ensureAuthTables();
   await ensureMenusTable();
   await ensureInventoryTable();
+  await ensurePrepWorkflowTables();
   await ensureOrganizationIdColumns();
   await safeInitializeSampleData();
 }
@@ -620,6 +658,247 @@ export const storage = {
       .delete(inventory)
       .where(and(eq(inventory.id, id), eq(inventory.organizationId, organizationId)));
     return (result as any).rowCount > 0;
+  },
+
+  async createPrepListRecord(data: {
+    organizationId: string;
+    eventId: string;
+    eventName: string;
+    guestCount: number;
+    portionsPerPerson: number;
+    prepTasks: Array<{
+      task: string;
+      ingredient: string;
+      ingredientId?: string;
+      quantity: number;
+      unit: string;
+      category: string;
+      isManual?: boolean;
+    }>;
+    purchaseItems: Array<{
+      ingredient: string;
+      ingredientId?: string;
+      needed: number;
+      unit: string;
+      currentStock: number;
+      shortfall: number;
+      category?: string;
+    }>;
+  }): Promise<any> {
+    const created = await db.execute(sql`
+      INSERT INTO "prep_lists" (
+        "organization_id",
+        "event_id",
+        "event_name",
+        "guest_count",
+        "portions_per_person"
+      )
+      VALUES (
+        ${data.organizationId},
+        ${data.eventId},
+        ${data.eventName},
+        ${data.guestCount},
+        ${String(data.portionsPerPerson)}
+      )
+      RETURNING *
+    `);
+    const prepList = (created as any).rows?.[0];
+    if (!prepList?.id) return null;
+
+    for (const task of data.prepTasks) {
+      await db.execute(sql`
+        INSERT INTO "prep_list_items" (
+          "prep_list_id",
+          "kind",
+          "task",
+          "ingredient",
+          "ingredient_id",
+          "quantity",
+          "unit",
+          "category",
+          "is_manual"
+        )
+        VALUES (
+          ${prepList.id},
+          'prep',
+          ${task.task},
+          ${task.ingredient},
+          ${task.ingredientId ?? null},
+          ${String(task.quantity ?? 0)},
+          ${task.unit},
+          ${task.category || "other"},
+          ${task.isManual ? true : false}
+        )
+      `);
+    }
+
+    for (const item of data.purchaseItems) {
+      await db.execute(sql`
+        INSERT INTO "prep_list_items" (
+          "prep_list_id",
+          "kind",
+          "task",
+          "ingredient",
+          "ingredient_id",
+          "quantity",
+          "unit",
+          "category",
+          "needed",
+          "current_stock",
+          "shortfall"
+        )
+        VALUES (
+          ${prepList.id},
+          'purchase',
+          ${`Buy ${Math.round((item.shortfall ?? 0) * 100) / 100} ${item.unit} ${item.ingredient}`},
+          ${item.ingredient},
+          ${item.ingredientId ?? null},
+          ${String(item.shortfall ?? 0)},
+          ${item.unit},
+          ${item.category || "other"},
+          ${String(item.needed ?? 0)},
+          ${String(item.currentStock ?? 0)},
+          ${String(item.shortfall ?? 0)}
+        )
+      `);
+    }
+
+    return this.getPrepListRecord(prepList.id, data.organizationId);
+  },
+
+  async getPrepListRecord(id: string, organizationId: string): Promise<any> {
+    const listResult = await db.execute(sql`
+      SELECT *
+      FROM "prep_lists"
+      WHERE "id" = ${id} AND "organization_id" = ${organizationId}
+      LIMIT 1
+    `);
+    const prepList = (listResult as any).rows?.[0];
+    if (!prepList) return null;
+
+    const itemsResult = await db.execute(sql`
+      SELECT *
+      FROM "prep_list_items"
+      WHERE "prep_list_id" = ${id}
+      ORDER BY "created_at" ASC
+    `);
+    const items = ((itemsResult as any).rows ?? []) as any[];
+    const prepTasks = items
+      .filter((r) => r.kind === "prep")
+      .map((r) => ({
+        id: String(r.id),
+        task: String(r.task),
+        ingredient: String(r.ingredient),
+        ingredientId: r.ingredient_id ? String(r.ingredient_id) : undefined,
+        quantity: parseFloat(String(r.quantity ?? 0)) || 0,
+        unit: String(r.unit ?? ""),
+        category: String(r.category ?? "other"),
+        isManual: !!r.is_manual,
+      }));
+    const purchaseList = items
+      .filter((r) => r.kind === "purchase")
+      .map((r) => ({
+        id: String(r.id),
+        ingredient: String(r.ingredient),
+        ingredientId: r.ingredient_id ? String(r.ingredient_id) : undefined,
+        needed: parseFloat(String(r.needed ?? 0)) || 0,
+        unit: String(r.unit ?? ""),
+        currentStock: parseFloat(String(r.current_stock ?? 0)) || 0,
+        shortfall: parseFloat(String(r.shortfall ?? 0)) || 0,
+        category: String(r.category ?? "other"),
+      }));
+
+    return {
+      id: String(prepList.id),
+      eventId: prepList.event_id ? String(prepList.event_id) : "",
+      eventName: String(prepList.event_name),
+      guestCount: Number(prepList.guest_count ?? 0),
+      portionsPerPerson: parseFloat(String(prepList.portions_per_person ?? 1)) || 1,
+      generatedAt: prepList.created_at ? new Date(prepList.created_at).toISOString() : new Date().toISOString(),
+      prepStatus: String(prepList.prep_status ?? "in_preparation"),
+      purchaseStatus: String(prepList.purchase_status ?? "in_preparation"),
+      prepInventoryApplied: !!prepList.prep_inventory_applied,
+      prepTasks,
+      purchaseList,
+      summary: {
+        totalIngredients: prepTasks.length,
+        totalPrepTasks: prepTasks.length,
+        itemsToPurchase: purchaseList.length,
+        estimatedPrepTime: Math.ceil(prepTasks.length * 5),
+      },
+    };
+  },
+
+  async updatePrepListStatus(data: {
+    id: string;
+    organizationId: string;
+    kind: "prep" | "purchase";
+    status: "in_preparation" | "done" | "archived";
+  }): Promise<any> {
+    if (data.kind === "prep") {
+      await db.execute(sql`
+        UPDATE "prep_lists"
+        SET "prep_status" = ${data.status}, "updated_at" = now()
+        WHERE "id" = ${data.id} AND "organization_id" = ${data.organizationId}
+      `);
+    } else {
+      await db.execute(sql`
+        UPDATE "prep_lists"
+        SET "purchase_status" = ${data.status}, "updated_at" = now()
+        WHERE "id" = ${data.id} AND "organization_id" = ${data.organizationId}
+      `);
+    }
+    return this.getPrepListRecord(data.id, data.organizationId);
+  },
+
+  async markPrepInventoryApplied(id: string, organizationId: string): Promise<void> {
+    await db.execute(sql`
+      UPDATE "prep_lists"
+      SET "prep_inventory_applied" = true, "updated_at" = now()
+      WHERE "id" = ${id} AND "organization_id" = ${organizationId}
+    `);
+  },
+
+  async addManualPrepTask(data: {
+    prepListId: string;
+    organizationId: string;
+    task: string;
+    ingredient: string;
+    quantity: number;
+    unit: string;
+    category?: string;
+  }): Promise<any> {
+    const exists = await db.execute(sql`
+      SELECT 1
+      FROM "prep_lists"
+      WHERE "id" = ${data.prepListId} AND "organization_id" = ${data.organizationId}
+      LIMIT 1
+    `);
+    if (!((exists as any).rows?.[0])) return null;
+
+    await db.execute(sql`
+      INSERT INTO "prep_list_items" (
+        "prep_list_id",
+        "kind",
+        "task",
+        "ingredient",
+        "quantity",
+        "unit",
+        "category",
+        "is_manual"
+      )
+      VALUES (
+        ${data.prepListId},
+        'prep',
+        ${data.task},
+        ${data.ingredient},
+        ${String(data.quantity)},
+        ${data.unit},
+        ${data.category || "other"},
+        true
+      )
+    `);
+    return this.getPrepListRecord(data.prepListId, data.organizationId);
   },
 
   // Event operations
