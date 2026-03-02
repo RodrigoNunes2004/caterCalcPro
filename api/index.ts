@@ -49,6 +49,7 @@ app.use("/api", async (req, res, next) => {
       const { default: eventsRoutes } = await import("../server/routes/events.js");
       const { default: menuRoutes } = await import("../server/routes/menus.js");
       const { default: prepListRoutes } = await import("../server/routes/prepLists.js");
+      const { default: inventoryRoutes } = await import("../server/routes/inventory.js");
       const router = express.Router();
       router.use(healthRoutes);
       router.use(authRoutes);
@@ -57,6 +58,7 @@ app.use("/api", async (req, res, next) => {
       router.use(eventsRoutes);
       router.use(menuRoutes);
       router.use(prepListRoutes);
+      router.use(inventoryRoutes);
       apiRouter = router;
     } catch (err) {
       routesLoadError = err instanceof Error ? err : new Error(String(err));

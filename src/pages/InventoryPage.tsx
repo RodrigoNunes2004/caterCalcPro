@@ -90,21 +90,22 @@ interface InventoryItem {
   notes?: string;
 }
 
-function mapApiToItem(row: { id: string; name: string; currentStock: number | string; unit: string; minimumStock?: number | string; updatedAt?: string }): InventoryItem {
-  const stock = typeof row.currentStock === "string" ? parseFloat(row.currentStock) : row.currentStock;
-  const minStock = typeof row.minimumStock === "string" ? parseFloat(row.minimumStock) : (row.minimumStock ?? 0);
+function mapApiToItem(row: Record<string, unknown>): InventoryItem {
+  const r = row as any;
+  const stock = Number(r?.currentStock ?? r?.current_stock ?? 0) || 0;
+  const minStock = Number(r?.minimumStock ?? r?.minimum_stock ?? 0) || 0;
   return {
-    id: row.id,
-    productName: row.name,
+    id: String(r?.id ?? ""),
+    productName: String(r?.name ?? ""),
     category: "General",
     type: "",
     location: "Storage",
     currentStock: stock,
-    unit: row.unit,
+    unit: String(r?.unit ?? "kg"),
     pricePerUnit: 0,
     minimumStock: minStock,
     supplier: "",
-    lastUpdated: row.updatedAt ? new Date(row.updatedAt).toISOString().split("T")[0] : new Date().toISOString().split("T")[0],
+    lastUpdated: r?.updatedAt || r?.updated_at ? new Date(r.updatedAt || r.updated_at).toISOString().split("T")[0] : new Date().toISOString().split("T")[0],
   };
 }
 
@@ -219,7 +220,10 @@ export default function InventoryPage() {
         setShowAddDialog(false);
         toast({ title: "Item added", description: `${newItem.productName} added to inventory.` });
       } else {
-        toast({ title: "Failed to add", description: data?.error || "Could not add item. Please try again.", variant: "destructive" });
+        const errMsg = res.status === 401
+          ? "Session expired. Please log in again."
+          : data?.error || "Could not add item. Please try again.";
+        toast({ title: "Failed to add", description: errMsg, variant: "destructive" });
       }
     } catch (e) {
       console.error("Failed to add inventory:", e);

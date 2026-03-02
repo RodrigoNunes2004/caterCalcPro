@@ -35,9 +35,13 @@ router.post("/inventory", async (req: AuthRequest, res) => {
       minimumStock: Number.isFinite(minStock) ? minStock : 0,
     });
     res.status(201).json(item);
-  } catch (error) {
+  } catch (error: any) {
     console.error("Error creating inventory item:", error);
-    res.status(500).json({ error: "Failed to create inventory item" });
+    const msg = error?.message || String(error);
+    const hint = msg.includes("inventory") && msg.includes("does not exist")
+      ? " Run 'pnpm db:push' to create the inventory table."
+      : "";
+    res.status(500).json({ error: `Failed to create inventory item.${hint}`, details: msg });
   }
 });
 
