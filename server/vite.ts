@@ -24,14 +24,9 @@ export function log(message: string, source = "express") {
 }
 
 export async function setupVite(app: Express, server: Server) {
-  const port = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
   const serverOptions = {
     middlewareMode: true,
-    hmr: {
-      server,
-      port,
-      host: process.env.HOST ?? "localhost",
-    },
+    hmr: { server }, // Use same HTTP server for WebSocket - client infers URL from page
     allowedHosts: true as const,
   };
 

@@ -37,6 +37,16 @@ app.use(cookieParser());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+// Debug: verify API and env (no secrets)
+app.get("/api/debug", (req, res) => {
+  res.json({
+    ok: true,
+    hasDatabase: !!process.env.DATABASE_URL,
+    hasJwt: !!process.env.JWT_SECRET,
+    nodeEnv: process.env.NODE_ENV,
+  });
+});
+
 // Mount API routes (same as server)
 app.use("/api", healthRoutes);
 app.use("/api", authRoutes);

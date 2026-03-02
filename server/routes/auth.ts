@@ -48,13 +48,13 @@ router.post("/auth/register", async (req: Request, res: Response) => {
       .json({ user: userResponse, token }); // token fallback when cookies fail (e.g. Vercel)
   } catch (err: any) {
     console.error("Register error:", err);
-    const msg = err?.message || "";
+    const msg = String(err?.message || "");
     const isTableMissing = /relation "organizations" does not exist|relation "users" does not exist/i.test(msg);
-    res.status(500).json({
-      error: isTableMissing
-        ? "Database not migrated. Run: pnpm db:push (or pnpm db:push:force to skip prompts)"
-        : "Registration failed",
-    });
+    const isJwt = /secret|jwt|sign/i.test(msg);
+    let errorMsg = "Registration failed";
+    if (isTableMissing) errorMsg = "Database not migrated. Run: pnpm db:push";
+    else if (isJwt) errorMsg = "Auth config error. Check JWT_SECRET in Vercel env vars.";
+    res.status(500).json({ error: errorMsg });
   }
 });
 
