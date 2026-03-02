@@ -21,18 +21,41 @@ router.get("/inventory", async (req: AuthRequest, res) => {
 router.post("/inventory", async (req: AuthRequest, res) => {
   try {
     const orgId = req.auth!.organizationId;
-    const { name, currentStock, unit, minimumStock } = req.body;
+    const {
+      name,
+      category,
+      type,
+      location,
+      currentStock,
+      unit,
+      pricePerUnit,
+      gstInclusive,
+      minimumStock,
+      supplier,
+      expiryDate,
+      notes,
+    } = req.body;
     if (!name || unit === undefined) {
       return res.status(400).json({ error: "Name and unit are required" });
     }
     const stock = Number(currentStock);
     const minStock = Number(minimumStock);
+    const price = Number(pricePerUnit);
+    const parsedExpiryDate = expiryDate ? new Date(expiryDate) : null;
     const item = await storage.createInventoryItem({
       organizationId: orgId,
       name: String(name).trim(),
+      category: category ? String(category).trim() : "General",
+      type: type ? String(type).trim() : "",
+      location: location ? String(location).trim() : "Storage",
       currentStock: Number.isFinite(stock) ? stock : 0,
       unit: String(unit),
+      pricePerUnit: Number.isFinite(price) ? price : 0,
+      gstInclusive: !!gstInclusive,
       minimumStock: Number.isFinite(minStock) ? minStock : 0,
+      supplier: supplier ? String(supplier).trim() : "",
+      expiryDate: parsedExpiryDate && !Number.isNaN(parsedExpiryDate.getTime()) ? parsedExpiryDate : null,
+      notes: notes ? String(notes) : "",
     });
     res.status(201).json(item);
   } catch (error: any) {
@@ -50,12 +73,36 @@ router.put("/inventory/:id", async (req: AuthRequest, res) => {
   try {
     const orgId = req.auth!.organizationId;
     const { id } = req.params;
-    const { name, currentStock, unit, minimumStock } = req.body;
+    const {
+      name,
+      category,
+      type,
+      location,
+      currentStock,
+      unit,
+      pricePerUnit,
+      gstInclusive,
+      minimumStock,
+      supplier,
+      expiryDate,
+      notes,
+    } = req.body;
     const updates: Record<string, unknown> = {};
     if (name !== undefined) updates.name = String(name).trim();
+    if (category !== undefined) updates.category = String(category).trim();
+    if (type !== undefined) updates.type = String(type).trim();
+    if (location !== undefined) updates.location = String(location).trim();
     if (currentStock !== undefined) updates.currentStock = Number(currentStock);
     if (unit !== undefined) updates.unit = String(unit);
+    if (pricePerUnit !== undefined) updates.pricePerUnit = Number(pricePerUnit);
+    if (gstInclusive !== undefined) updates.gstInclusive = !!gstInclusive;
     if (minimumStock !== undefined) updates.minimumStock = Number(minimumStock);
+    if (supplier !== undefined) updates.supplier = String(supplier).trim();
+    if (expiryDate !== undefined) {
+      const parsed = expiryDate ? new Date(expiryDate) : null;
+      updates.expiryDate = parsed && !Number.isNaN(parsed.getTime()) ? parsed : null;
+    }
+    if (notes !== undefined) updates.notes = String(notes);
     const item = await storage.updateInventoryItem(id, orgId, updates);
     if (!item) return res.status(404).json({ error: "Inventory item not found" });
     res.json(item);
@@ -97,9 +144,17 @@ router.post("/inventory/bulk", async (req: AuthRequest, res) => {
       const item = await storage.createInventoryItem({
         organizationId: orgId,
         name,
+        category: (it.category || "General").toString(),
+        type: (it.type || "").toString(),
+        location: (it.location || "Storage").toString(),
         currentStock,
         unit,
+        pricePerUnit: Number(it.pricePerUnit) || 0,
+        gstInclusive: !!it.gstInclusive,
         minimumStock,
+        supplier: (it.supplier || "").toString(),
+        expiryDate: it.expiryDate ? new Date(it.expiryDate) : null,
+        notes: (it.notes || "").toString(),
       });
       created.push(item);
     }

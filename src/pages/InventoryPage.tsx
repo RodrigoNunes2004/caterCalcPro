@@ -94,18 +94,29 @@ function mapApiToItem(row: Record<string, unknown>): InventoryItem {
   const r = row as any;
   const stock = Number(r?.currentStock ?? r?.current_stock ?? 0) || 0;
   const minStock = Number(r?.minimumStock ?? r?.minimum_stock ?? 0) || 0;
+  const price = Number(r?.pricePerUnit ?? r?.price_per_unit ?? 0) || 0;
   return {
     id: String(r?.id ?? ""),
     productName: String(r?.name ?? ""),
-    category: "General",
-    type: "",
-    location: "Storage",
+    category: String(r?.category ?? "General"),
+    type: String(r?.type ?? ""),
+    location: String(r?.location ?? "Storage"),
     currentStock: stock,
     unit: String(r?.unit ?? "kg"),
-    pricePerUnit: 0,
+    pricePerUnit: price,
+    gstInclusive:
+      (() => {
+        const raw = r?.gstInclusive ?? r?.gst_inclusive ?? false;
+        if (typeof raw === "boolean") return raw;
+        if (typeof raw === "string") return raw.toLowerCase() === "true" || raw === "1" || raw.toLowerCase() === "t";
+        if (typeof raw === "number") return raw === 1;
+        return false;
+      })(),
     minimumStock: minStock,
-    supplier: "",
+    supplier: String(r?.supplier ?? ""),
+    expiryDate: r?.expiryDate || r?.expiry_date ? new Date(r.expiryDate || r.expiry_date).toISOString().split("T")[0] : "",
     lastUpdated: r?.updatedAt || r?.updated_at ? new Date(r.updatedAt || r.updated_at).toISOString().split("T")[0] : new Date().toISOString().split("T")[0],
+    notes: String(r?.notes ?? ""),
   };
 }
 
@@ -208,9 +219,17 @@ export default function InventoryPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           name: newItem.productName.trim(),
+          category: newItem.category || "General",
+          type: newItem.type || "",
+          location: newItem.location || "Storage",
           currentStock: Number(newItem.currentStock) || 0,
           unit: newItem.unit || "kg",
+          pricePerUnit: Number(newItem.pricePerUnit) || 0,
+          gstInclusive: !!newItem.gstInclusive,
           minimumStock: Number(newItem.minimumStock) || 0,
+          supplier: newItem.supplier || "",
+          expiryDate: newItem.expiryDate || null,
+          notes: newItem.notes || "",
         }),
       });
       const data = await res.json().catch(() => ({}));
@@ -265,9 +284,17 @@ export default function InventoryPage() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             name: newItem.productName.trim(),
+            category: newItem.category || "General",
+            type: newItem.type || "",
+            location: newItem.location || "Storage",
             currentStock: Number(newItem.currentStock) || 0,
             unit: newItem.unit || "kg",
+            pricePerUnit: Number(newItem.pricePerUnit) || 0,
+            gstInclusive: !!newItem.gstInclusive,
             minimumStock: Number(newItem.minimumStock) || 0,
+            supplier: newItem.supplier || "",
+            expiryDate: newItem.expiryDate || null,
+            notes: newItem.notes || "",
           }),
         });
         const data = await res.json().catch(() => ({}));

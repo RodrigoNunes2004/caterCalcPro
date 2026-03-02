@@ -302,26 +302,50 @@ async function ensureMenusTable() {
 
 // Ensure inventory table exists (both local and production DBs)
 async function ensureInventoryTable() {
-  try {
-    await db.select().from(inventory).limit(1);
-    return;
-  } catch (err: any) {
-    const message = String(err?.message ?? "");
-    if (!message.includes("inventory") || !message.includes("does not exist")) return;
-  }
-
   console.log("Running inventory migration...");
   await db.execute(sql`
     CREATE TABLE IF NOT EXISTS "inventory" (
       "id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
       "organization_id" uuid NOT NULL REFERENCES "organizations"("id") ON DELETE cascade,
       "name" text NOT NULL,
+      "category" varchar(50) DEFAULT 'General',
+      "type" text,
+      "location" text DEFAULT 'Storage',
       "current_stock" numeric(10, 4) NOT NULL DEFAULT 0,
       "unit" varchar(20) NOT NULL,
+      "price_per_unit" numeric(10, 4) DEFAULT 0,
+      "gst_inclusive" boolean DEFAULT false,
       "minimum_stock" numeric(10, 4) DEFAULT 0,
+      "supplier" text,
+      "expiry_date" timestamp,
+      "notes" text,
       "created_at" timestamp DEFAULT now() NOT NULL,
       "updated_at" timestamp DEFAULT now() NOT NULL
     );
+  `);
+  await db.execute(sql`
+    ALTER TABLE "inventory" ADD COLUMN IF NOT EXISTS "category" varchar(50) DEFAULT 'General';
+  `);
+  await db.execute(sql`
+    ALTER TABLE "inventory" ADD COLUMN IF NOT EXISTS "type" text;
+  `);
+  await db.execute(sql`
+    ALTER TABLE "inventory" ADD COLUMN IF NOT EXISTS "location" text DEFAULT 'Storage';
+  `);
+  await db.execute(sql`
+    ALTER TABLE "inventory" ADD COLUMN IF NOT EXISTS "price_per_unit" numeric(10, 4) DEFAULT 0;
+  `);
+  await db.execute(sql`
+    ALTER TABLE "inventory" ADD COLUMN IF NOT EXISTS "gst_inclusive" boolean DEFAULT false;
+  `);
+  await db.execute(sql`
+    ALTER TABLE "inventory" ADD COLUMN IF NOT EXISTS "supplier" text;
+  `);
+  await db.execute(sql`
+    ALTER TABLE "inventory" ADD COLUMN IF NOT EXISTS "expiry_date" timestamp;
+  `);
+  await db.execute(sql`
+    ALTER TABLE "inventory" ADD COLUMN IF NOT EXISTS "notes" text;
   `);
   console.log("Inventory migration completed");
 
@@ -628,7 +652,21 @@ export const storage = {
     }
   },
 
-  async createInventoryItem(data: { organizationId: string; name: string; currentStock?: number; unit: string; minimumStock?: number }): Promise<any> {
+  async createInventoryItem(data: {
+    organizationId: string;
+    name: string;
+    category?: string;
+    type?: string;
+    location?: string;
+    currentStock?: number;
+    unit: string;
+    pricePerUnit?: number;
+    gstInclusive?: boolean;
+    minimumStock?: number;
+    supplier?: string;
+    expiryDate?: Date | null;
+    notes?: string;
+  }): Promise<any> {
     const result = await db
       .insert(inventory)
       .values({ ...data, updatedAt: new Date() } as any)

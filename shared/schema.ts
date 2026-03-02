@@ -159,9 +159,17 @@ export const inventory = pgTable("inventory", {
     .references(() => organizations.id, { onDelete: "cascade" })
     .notNull(),
   name: text("name").notNull(), // product/ingredient name for matching recipes
+  category: varchar("category", { length: 50 }).default("General"),
+  type: text("type"),
+  location: text("location").default("Storage"),
   currentStock: decimal("current_stock", { precision: 10, scale: 4 }).notNull().default("0"),
   unit: varchar("unit", { length: 20 }).notNull(),
+  pricePerUnit: decimal("price_per_unit", { precision: 10, scale: 4 }).default("0"),
+  gstInclusive: boolean("gst_inclusive").default(false),
   minimumStock: decimal("minimum_stock", { precision: 10, scale: 4 }).default("0"),
+  supplier: text("supplier"),
+  expiryDate: timestamp("expiry_date"),
+  notes: text("notes"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
