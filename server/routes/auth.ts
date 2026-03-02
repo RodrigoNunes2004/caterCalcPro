@@ -98,21 +98,27 @@ router.post("/auth/login", async (req: Request, res: Response) => {
 });
 
 router.get("/auth/me", (req: Request, res: Response) => {
-  const authHeader = req.headers.authorization;
-  const token = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : req.cookies?.token;
-  const payload = token ? verifyToken(token) : null;
-  if (!payload) {
-    res.status(401).json({ error: "Unauthorized" });
-    return;
+  try {
+    const authHeader = req.headers.authorization;
+    const cookies = req.cookies || {};
+    const token = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : cookies.token;
+    const payload = token ? verifyToken(token) : null;
+    if (!payload) {
+      res.status(401).json({ error: "Unauthorized" });
+      return;
+    }
+    res.json({
+      user: {
+        id: payload.userId,
+        email: payload.email,
+        role: payload.role,
+        organizationId: payload.organizationId,
+      },
+    });
+  } catch (err) {
+    console.error("Auth me error:", err);
+    res.status(500).json({ error: "Auth check failed" });
   }
-  res.json({
-    user: {
-      id: payload.userId,
-      email: payload.email,
-      role: payload.role,
-      organizationId: payload.organizationId,
-    },
-  });
 });
 
 router.post("/auth/logout", (_req: Request, res: Response) => {

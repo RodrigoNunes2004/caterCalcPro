@@ -20,8 +20,19 @@ const __dirname = path.dirname(__filename);
 
 const app = express();
 
-// Middleware - must match server config for auth cookies
+// CORS - allow credentials and reflect request origin (required for cookies)
 app.use(cors({ origin: true, credentials: true }));
+// Ensure CORS headers on all responses (including errors)
+app.use((req, res, next) => {
+  const origin = req.headers.origin;
+  if (origin) {
+    res.setHeader("Access-Control-Allow-Origin", origin);
+  }
+  res.setHeader("Access-Control-Allow-Credentials", "true");
+  res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
+  next();
+});
 app.use(cookieParser());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
@@ -38,6 +49,9 @@ app.use("/api", prepListRoutes);
 // Serve static files from the dist/public directory
 app.use(express.static(path.join(__dirname, "../dist/public")));
 
+// Prevent favicon 404 (browser requests /favicon.ico before parsing HTML)
+app.get("/favicon.ico", (req, res) => res.status(204).end());
+
 // Catch-all: serve React app for non-API routes (Vercel also serves static directly)
 app.get("*", (req, res, next) => {
   if (req.path.startsWith("/api/")) {
@@ -52,10 +66,15 @@ app.get("*", (req, res, next) => {
   }
 });
 
-// Error handling middleware
+// Error handling middleware - ensure CORS headers on errors
 app.use((err: any, req: any, res: any, next: any) => {
-  console.error("Error:", err);
-  res.status(500).json({ error: "Internal server error" });
+  console.error("API Error:", err);
+  const origin = req.headers?.origin;
+  if (origin) res.setHeader("Access-Control-Allow-Origin", origin);
+  res.setHeader("Access-Control-Allow-Credentials", "true");
+  if (!res.headersSent) {
+    res.status(500).json({ error: "Internal server error" });
+  }
 });
 
 // Export for Vercel

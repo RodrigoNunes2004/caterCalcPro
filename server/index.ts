@@ -13,14 +13,20 @@ const server = createServer(app);
 // Middleware
 app.use(cors({ origin: true, credentials: true }));
 app.use(cookieParser());
+app.get("/favicon.ico", (req, res) => res.status(204).end());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Error handling middleware
+// Error handling middleware - ensure CORS headers on errors
 app.use((err: any, req: any, res: any, next: any) => {
   log(`Error: ${err.message}`, "error");
   console.error(err);
-  res.status(500).json({ error: "Internal server error" });
+  const origin = req.headers?.origin;
+  if (origin) res.setHeader("Access-Control-Allow-Origin", origin);
+  res.setHeader("Access-Control-Allow-Credentials", "true");
+  if (!res.headersSent) {
+    res.status(500).json({ error: "Internal server error" });
+  }
 });
 
 const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
