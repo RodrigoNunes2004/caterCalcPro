@@ -45,7 +45,7 @@ router.post("/auth/register", async (req: Request, res: Response) => {
         maxAge: 7 * 24 * 60 * 60 * 1000,
       })
       .status(201)
-      .json({ user: userResponse });
+      .json({ user: userResponse, token }); // token fallback when cookies fail (e.g. Vercel)
   } catch (err: any) {
     console.error("Register error:", err);
     const msg = err?.message || "";
@@ -90,7 +90,7 @@ router.post("/auth/login", async (req: Request, res: Response) => {
         sameSite: "lax",
         maxAge: 7 * 24 * 60 * 60 * 1000,
       })
-      .json({ user: userResponse });
+      .json({ user: userResponse, token }); // token fallback when cookies fail (e.g. Vercel)
   } catch (err) {
     console.error("Login error:", err);
     res.status(500).json({ error: "Login failed" });

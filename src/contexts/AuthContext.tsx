@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
+import { setAuthToken, getAuthToken } from "@/lib/authToken";
 
 export interface AuthUser {
   id: string;
@@ -25,7 +26,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const refreshUser = useCallback(async () => {
     try {
-      const res = await fetch("/api/auth/me", { credentials: "include" });
+      const headers: HeadersInit = {};
+      const t = getAuthToken();
+      if (t) headers["Authorization"] = `Bearer ${t}`;
+      const res = await fetch("/api/auth/me", {
+        credentials: "include",
+        headers,
+      });
       if (res.ok) {
         const data = await res.json();
         setUser(data.user);
@@ -56,6 +63,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return { ok: false, error: data.error || "Login failed" };
       }
       setUser(data.user);
+      if (data.token) setAuthToken(data.token); // fallback when cookies don't work
       return { ok: true };
     } catch (err) {
       return { ok: false, error: "Network error" };
@@ -72,11 +80,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           credentials: "include",
         });
         const data = await res.json().catch(() => ({}));
-        if (!res.ok) {
-          return { ok: false, error: data.error || "Registration failed" };
-        }
-        setUser(data.user);
-        return { ok: true };
+if (!res.ok) {
+        return { ok: false, error: data.error || "Registration failed" };
+      }
+      setUser(data.user);
+      if (data.token) setAuthToken(data.token); // fallback when cookies don't work
+      return { ok: true };
       } catch (err) {
         return { ok: false, error: "Network error" };
       }
@@ -85,6 +94,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   );
 
   const logout = useCallback(async () => {
+    setAuthToken(null);
     try {
       await fetch("/api/auth/logout", { method: "POST", credentials: "include" });
     } catch {
