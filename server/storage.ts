@@ -1010,8 +1010,19 @@ export const storage = {
 
     const total = totalResult[0]?.count || 0;
 
+    // Add recipe count per menu
+    const menusWithCount = await Promise.all(
+      menusResult.map(async (menu) => {
+        const [countRow] = await db
+          .select({ count: count() })
+          .from(menuRecipes)
+          .where(eq(menuRecipes.menuId, menu.id));
+        return { ...menu, totalRecipes: Number(countRow?.count || 0) };
+      })
+    );
+
     return {
-      menus: menusResult,
+      menus: menusWithCount,
       total: Number(total),
       page,
       limit,

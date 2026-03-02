@@ -314,7 +314,9 @@ router.post("/prep-lists", async (req: AuthRequest, res) => {
 
     for (const menuRecipe of allRecipes) {
       const recipe = menuRecipe.recipe; // Extract the actual recipe from menu structure
-      const scaleFactor = guestCount / recipe.servings;
+      if (!recipe) continue;
+      const servings = Number(recipe.servings) || 1;
+      const scaleFactor = guestCount / servings;
 
       if (recipe.ingredients && recipe.ingredients.length > 0) {
         for (const recipeIngredient of recipe.ingredients) {
@@ -331,8 +333,11 @@ router.post("/prep-lists", async (req: AuthRequest, res) => {
             finalUnit = userOverrides[ingredient.id].unit;
           }
 
-          // Extract prep tasks from recipe instructions
-          const prepTasks = extractPrepTasks(recipe.instructions || "");
+          // Extract prep tasks from recipe instructions, or default to "Prepare X"
+          let prepTasks = extractPrepTasks(recipe.instructions || "");
+          if (prepTasks.length === 0) {
+            prepTasks = [`Prepare ${ingredient.name} (${finalQuantity} ${finalUnit})`];
+          }
 
           const key = ingredient.id;
           if (ingredientMap.has(key)) {

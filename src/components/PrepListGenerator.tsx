@@ -71,15 +71,15 @@ export default function PrepListGenerator({ onSave }: PrepListGeneratorProps) {
   const [searchTerm, setSearchTerm] = useState<string>("");
   const [prepList, setPrepList] = useState<any>(null);
   const [loading, setLoading] = useState(false);
-  const [showResults, setShowResults] = useState(false);
+  const [activeTab, setActiveTab] = useState<string>("setup");
 
   // Fetch events and menus
   useEffect(() => {
     const fetchData = async () => {
       try {
         const [eventsResponse, menusResponse] = await Promise.all([
-          fetch("/api/events"),
-          fetch("/api/menus"),
+          fetch("/api/events", { credentials: "include" }),
+          fetch("/api/menus", { credentials: "include" }),
         ]);
 
         if (eventsResponse.ok) {
@@ -92,7 +92,7 @@ export default function PrepListGenerator({ onSave }: PrepListGeneratorProps) {
 
         if (menusResponse.ok) {
           const menusData = await menusResponse.json();
-          setMenus(menusData || []);
+          setMenus(menusData.menus || menusData || []);
         } else {
           console.error("Failed to fetch menus:", menusResponse.status);
           setMenus([]);
@@ -145,24 +145,27 @@ export default function PrepListGenerator({ onSave }: PrepListGeneratorProps) {
           menuIds: selectedMenus,
           guestCount: guestCount,
         }),
+        credentials: "include",
       });
 
       if (response.ok) {
         const data = await response.json();
         setPrepList(data);
-        setShowResults(true);
+        setActiveTab("prep-list");
         toast({
           title: "Prep List Generated",
           description: `Generated prep list for ${data.eventName}`,
         });
       } else {
-        throw new Error("Failed to generate prep list");
+        const errData = await response.json().catch(() => ({}));
+        throw new Error(errData.error || "Failed to generate prep list");
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error generating prep list:", error);
       toast({
         title: "Error",
-        description: "Failed to generate prep list. Please try again.",
+        description: error?.message || "Failed to generate prep list. Please try again.",
+        variant: "destructive",
       });
     } finally {
       setLoading(false);
@@ -442,11 +445,18 @@ ${prepList.purchaseList
   };
 
   const savePrepList = () => {
-    if (prepList && onSave) {
+    if (!prepList) return;
+    if (onSave) {
       onSave(prepList);
       toast({
         title: "Prep List Saved",
         description: "Prep list has been saved successfully.",
+      });
+    } else {
+      exportPrepList();
+      toast({
+        title: "Prep List Exported",
+        description: "Use Export or Print to save a copy.",
       });
     }
   };
@@ -465,7 +475,7 @@ ${prepList.purchaseList
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <Tabs defaultValue="setup" className="w-full">
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
             <TabsList className="grid w-full grid-cols-4 p-1 rounded-lg">
               <TabsTrigger
                 value="setup"
