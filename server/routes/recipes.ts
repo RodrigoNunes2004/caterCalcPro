@@ -105,7 +105,7 @@ router.post("/recipes", async (req: AuthRequest, res) => {
               costPerUnit: ingredient.costPerUnit.toString(),
               category: "other",
               organizationId: orgId,
-            });
+            } as any);
           }
         } catch (error) {
           console.error("Error creating ingredient:", error);
@@ -115,7 +115,7 @@ router.post("/recipes", async (req: AuthRequest, res) => {
             costPerUnit: ingredient.costPerUnit.toString(),
             category: "other",
             organizationId: orgId,
-          });
+          } as any);
         }
 
         // Link ingredient to recipe

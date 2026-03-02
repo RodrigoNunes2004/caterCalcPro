@@ -79,8 +79,9 @@ const api = {
   addIngredientToRecipe: async (
     ingredient: InsertRecipeIngredient
   ): Promise<void> => {
+    const ing = ingredient as { recipeId: string };
     const response = await fetch(
-      `/api/recipes/${ingredient.recipeId}/ingredients`,
+      `/api/recipes/${ing.recipeId}/ingredients`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -111,8 +112,9 @@ const api = {
   addSubRecipeToRecipe: async (
     subRecipe: InsertRecipeSubRecipe
   ): Promise<void> => {
+    const sr = subRecipe as { parentRecipeId: string };
     const response = await fetch(
-      `/api/recipes/${subRecipe.parentRecipeId}/sub-recipes`,
+      `/api/recipes/${sr.parentRecipeId}/sub-recipes`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -321,16 +323,13 @@ export const useAddIngredientToRecipe = () => {
 
   return useMutation({
     mutationFn: api.addIngredientToRecipe,
-    onSuccess: (_, ingredient: InsertRecipeIngredient) => {
-      queryClient.invalidateQueries({
-        queryKey: ["recipe", ingredient.recipeId],
-      });
-      queryClient.invalidateQueries({
-        queryKey: ["recipe-costs", ingredient.recipeId],
-      });
-      queryClient.invalidateQueries({
-        queryKey: ["recipe-nutrition", ingredient.recipeId],
-      });
+    onSuccess: (_, ingredient) => {
+      const recipeId = (ingredient as { recipeId: string })?.recipeId;
+      if (recipeId) {
+        queryClient.invalidateQueries({ queryKey: ["recipe", recipeId] });
+        queryClient.invalidateQueries({ queryKey: ["recipe-costs", recipeId] });
+        queryClient.invalidateQueries({ queryKey: ["recipe-nutrition", recipeId] });
+      }
     },
   });
 };
@@ -361,13 +360,12 @@ export const useAddSubRecipeToRecipe = () => {
 
   return useMutation({
     mutationFn: api.addSubRecipeToRecipe,
-    onSuccess: (_, subRecipe: InsertRecipeSubRecipe) => {
-      queryClient.invalidateQueries({
-        queryKey: ["recipe", subRecipe.parentRecipeId],
-      });
-      queryClient.invalidateQueries({
-        queryKey: ["recipe-costs", subRecipe.parentRecipeId],
-      });
+    onSuccess: (_, subRecipe) => {
+      const parentRecipeId = (subRecipe as { parentRecipeId: string })?.parentRecipeId;
+      if (parentRecipeId) {
+        queryClient.invalidateQueries({ queryKey: ["recipe", parentRecipeId] });
+        queryClient.invalidateQueries({ queryKey: ["recipe-costs", parentRecipeId] });
+      }
     },
   });
 };

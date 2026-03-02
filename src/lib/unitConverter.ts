@@ -146,7 +146,7 @@ export class UnitConverter {
     }
 
     // Partial match
-    for (const [key, density] of this.densities.entries()) {
+    for (const [key, density] of [...this.densities.entries()]) {
       if (searchName.includes(key) || key.includes(searchName)) {
         return density;
       }

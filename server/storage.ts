@@ -204,7 +204,7 @@ async function initializeSampleData(retryCount = 0, maxRetries = 3) {
           await db.insert(menuRecipes).values([
             { menuId, recipeId: r1.id, order: 0 },
             { menuId, recipeId: r2.id, order: 1 },
-          ]);
+          ] as any);
           console.log("Sample menu 'Corporate Buffet' created");
         }
       } catch (menuError) {

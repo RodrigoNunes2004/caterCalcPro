@@ -93,7 +93,7 @@ router.post("/menus", async (req: AuthRequest, res) => {
       totalCost: totalCost.toString(),
       totalRecipes: recipeIds ? recipeIds.length : 0,
       avgPrepTime: avgPrepTime,
-    });
+    } as any);
 
     // Add recipes to menu if provided
     if (recipeIds && recipeIds.length > 0) {

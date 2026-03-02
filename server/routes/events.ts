@@ -69,7 +69,7 @@ router.post("/events", async (req: AuthRequest, res) => {
       ...processedData,
       organizationId: orgId,
     });
-    const newEvent = await storage.createEvent(eventData);
+    const newEvent = await storage.createEvent(eventData as any);
 
     console.log("Created event:", newEvent);
     res.status(201).json(newEvent);

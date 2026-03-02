@@ -253,7 +253,7 @@ function extractPrepTasks(instructions: string): string[] {
     }
   }
 
-  return [...new Set(tasks)]; // Remove duplicates
+  return Array.from(new Set(tasks)); // Remove duplicates
 }
 
 // Generate prep list
@@ -365,7 +365,7 @@ router.post("/prep-lists", async (req: AuthRequest, res) => {
 
             existing.scaledQuantity = displayQuantity;
             existing.prepTasks = [
-              ...new Set([...existing.prepTasks, ...prepTasks]),
+              ...Array.from(new Set([...existing.prepTasks, ...prepTasks])),
             ];
           } else {
             // Create new ingredient entry
@@ -388,7 +388,7 @@ router.post("/prep-lists", async (req: AuthRequest, res) => {
     }
 
     // Convert map to array
-    scaledIngredients.push(...ingredientMap.values());
+    scaledIngredients.push(...Array.from(ingredientMap.values()));
 
     // Generate prep tasks
     const prepTasks: PrepTask[] = [];

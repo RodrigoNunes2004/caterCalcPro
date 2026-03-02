@@ -1,11 +1,13 @@
 {
-  "include": ["src/**/*", "shared/**/*", "server/**/*"],
+  "include": ["src/**/*", "shared/**/*", "server/**/*", "api/**/*", "types/**/*"],
   "exclude": ["node_modules", "build", "dist", "**/*.test.ts"],
   "compilerOptions": {
     "incremental": true,
     "tsBuildInfoFile": "./node_modules/typescript/tsbuildinfo",
     "noEmit": true,
+    "target": "ES2022",
     "module": "ESNext",
+    "downlevelIteration": true,
     "strict": false,
     "lib": ["esnext", "dom", "dom.iterable"],
     "jsx": "react-jsx",
@@ -13,7 +15,7 @@
     "skipLibCheck": true,
     "allowImportingTsExtensions": true,
     "moduleResolution": "bundler",
-    "types": ["node", "vite/client"],
+    "types": ["node", "vite/client", "express"],
     "paths": {
       "@/*": ["./src/*"],
       "@shared/*": ["./shared/*"]

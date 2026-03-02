@@ -16,22 +16,6 @@ app.use(cookieParser());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Database will be initialized on first access
-log("Database will be initialized on first access");
-
-// Register API routes
-log("Registering API routes...");
-await registerRoutes(app);
-
-// Setup Vite for development or serve static files for production
-if (process.env.NODE_ENV === "development") {
-  log("Setting up Vite development server...");
-  await setupVite(app, server);
-} else {
-  log("Setting up static file serving...");
-  serveStatic(app);
-}
-
 // Error handling middleware
 app.use((err: any, req: any, res: any, next: any) => {
   log(`Error: ${err.message}`, "error");
@@ -48,7 +32,19 @@ if (NODE_ENV === "production" && !process.env.PORT) {
   process.exit(1);
 }
 
-(async () => {
+async function main() {
+  log("Database will be initialized on first access");
+  log("Registering API routes...");
+  await registerRoutes(app);
+
+  if (NODE_ENV === "development") {
+    log("Setting up Vite development server...");
+    await setupVite(app, server);
+  } else {
+    log("Setting up static file serving...");
+    serveStatic(app);
+  }
+
   try {
     await initStorage();
     log("Storage initialized");
@@ -61,7 +57,9 @@ if (NODE_ENV === "production" && !process.env.PORT) {
     log(`Server running on http://${HOST}:${PORT}`);
     log(`Environment: ${NODE_ENV}`);
   });
-})();
+}
+
+main();
 
 // Graceful shutdown
 process.on("SIGTERM", () => {

@@ -161,7 +161,7 @@ router.post("/ingredients/bulk", async (req: AuthRequest, res) => {
     );
 
     const createdIngredients = await storage.bulkCreateIngredients(
-      validatedIngredients
+      validatedIngredients as any
     );
 
     console.log(
