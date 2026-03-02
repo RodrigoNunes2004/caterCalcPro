@@ -1,7 +1,5 @@
 import { drizzle } from "drizzle-orm/neon-http";
-import { drizzle as drizzlePGLite } from "drizzle-orm/pglite";
 import { neon } from "@neondatabase/serverless";
-import { PGlite } from "@electric-sql/pglite";
 import { eq, like, ilike, desc, asc, and, or, count } from "drizzle-orm";
 import { randomUUID } from "crypto";
 import * as schema from "../shared/schema";
@@ -33,30 +31,24 @@ import {
   type MenuWithRecipes,
 } from "../shared/schema";
 
-// For development, we'll use PGLite (WASM Postgres)
-// For production, this will connect to PostgreSQL via DATABASE_URL
-let pgliteClient: PGlite | null = null;
+// PGLite is only loaded in development - avoids serverless crash (WASM/filesystem)
+let pgliteClient: import("@electric-sql/pglite").PGlite | null = null;
+let db: ReturnType<typeof drizzle>;
 
-export function createDrizzleDb() {
-  if (process.env.DATABASE_URL) {
-    // Production: Use PostgreSQL via Neon
-    console.log("Using Neon PostgreSQL connection");
-    const sql = neon(process.env.DATABASE_URL!);
-    return drizzle(sql, { schema });
-  } else {
-    // Development: Use PGLite (WASM Postgres)
-    console.log(
-      "No DATABASE_URL found, using PGLite (WASM Postgres) for development"
-    );
-    pgliteClient = new PGlite("./dev.db");
-    return drizzlePGLite(pgliteClient, { schema });
-  }
+if (process.env.DATABASE_URL) {
+  const sql = neon(process.env.DATABASE_URL);
+  db = drizzle(sql, { schema });
+} else {
+  const { PGlite } = await import("@electric-sql/pglite");
+  const { drizzle: drizzlePGLite } = await import("drizzle-orm/pglite");
+  pgliteClient = new PGlite("./dev.db");
+  db = drizzlePGLite(pgliteClient, { schema }) as unknown as ReturnType<typeof drizzle>;
 }
 
-export const db = createDrizzleDb();
+export { db };
 
-/** Get PGLite client for raw SQL (development only). Used for migrations. */
-export function getPgliteClient(): PGlite | null {
+/** Get PGLite client for raw SQL (development only). */
+export function getPgliteClient() {
   return pgliteClient;
 }
 
