@@ -41,7 +41,8 @@ app.use("/api", async (req, res, next) => {
   if (req.path === "/debug" || req.path === "debug") return next();
   if (!apiRouter && !routesLoadError) {
     try {
-      await import("../server/storage.js");
+      const { initStorage } = await import("../server/storage.js");
+      await initStorage();
       const { default: healthRoutes } = await import("../server/routes/health.js");
       const { default: authRoutes } = await import("../server/routes/auth.js");
       const { default: recipeRoutes } = await import("../server/routes/recipes.js");

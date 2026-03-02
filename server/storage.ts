@@ -1,6 +1,6 @@
 import { drizzle } from "drizzle-orm/neon-http";
 import { neon } from "@neondatabase/serverless";
-import { eq, like, ilike, desc, asc, and, or, count } from "drizzle-orm";
+import { eq, like, ilike, desc, asc, and, or, count, sql } from "drizzle-orm";
 import { randomUUID } from "crypto";
 import * as schema from "../shared/schema.js";
 import { ensureAuthTables, ensureOrganizationIdColumns } from "./lib/ensureAuthTables.js";
@@ -300,33 +300,31 @@ async function ensureMenusTable() {
   }
 }
 
-// Ensure inventory table exists (PGLite)
+// Ensure inventory table exists (both local and production DBs)
 async function ensureInventoryTable() {
-  if (process.env.DATABASE_URL) return;
-  const client = getPgliteClient();
-  if (!client) return;
-
   try {
     await db.select().from(inventory).limit(1);
+    return;
   } catch (err: any) {
-    if (err?.message?.includes('relation "inventory" does not exist')) {
-      console.log("Running inventory migration...");
-      const migrationSql = `
-        CREATE TABLE IF NOT EXISTS "inventory" (
-          "id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-          "organization_id" uuid NOT NULL REFERENCES "organizations"("id") ON DELETE cascade,
-          "name" text NOT NULL,
-          "current_stock" numeric(10, 4) NOT NULL DEFAULT 0,
-          "unit" varchar(20) NOT NULL,
-          "minimum_stock" numeric(10, 4) DEFAULT 0,
-          "created_at" timestamp DEFAULT now() NOT NULL,
-          "updated_at" timestamp DEFAULT now() NOT NULL
-        );
-      `;
-      await client.exec(migrationSql);
-      console.log("Inventory migration completed");
-    }
+    const message = String(err?.message ?? "");
+    if (!message.includes("inventory") || !message.includes("does not exist")) return;
   }
+
+  console.log("Running inventory migration...");
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS "inventory" (
+      "id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+      "organization_id" uuid NOT NULL REFERENCES "organizations"("id") ON DELETE cascade,
+      "name" text NOT NULL,
+      "current_stock" numeric(10, 4) NOT NULL DEFAULT 0,
+      "unit" varchar(20) NOT NULL,
+      "minimum_stock" numeric(10, 4) DEFAULT 0,
+      "created_at" timestamp DEFAULT now() NOT NULL,
+      "updated_at" timestamp DEFAULT now() NOT NULL
+    );
+  `);
+  console.log("Inventory migration completed");
+
 }
 
 // Run schema sync then sample data
