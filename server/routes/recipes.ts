@@ -39,9 +39,13 @@ router.get("/recipes", async (req: AuthRequest, res) => {
     });
 
     res.json(allRecipes);
-  } catch (error) {
+  } catch (error: any) {
     console.error("Error fetching recipes:", error);
-    res.status(500).json({ error: "Failed to fetch recipes" });
+    const msg = String(error?.message || "");
+    const hint = /relation.*does not exist|column.*does not exist/i.test(msg)
+      ? "Database schema may be outdated. Run: pnpm db:push"
+      : "Failed to fetch recipes";
+    res.status(500).json({ error: hint });
   }
 });
 
@@ -77,7 +81,10 @@ router.post("/recipes", async (req: AuthRequest, res) => {
       ...recipeData
     } = req.body;
 
-    const validatedRecipeData = insertRecipeSchema.parse(recipeData);
+    const validatedRecipeData = insertRecipeSchema.parse({
+      ...recipeData,
+      organizationId: orgId,
+    });
     const newRecipe = await storage.createRecipe({
       ...validatedRecipeData,
       organizationId: orgId,
@@ -131,9 +138,13 @@ router.post("/recipes", async (req: AuthRequest, res) => {
 
     console.log("Created recipe:", newRecipe);
     res.status(201).json(newRecipe);
-  } catch (error) {
+  } catch (error: any) {
     console.error("Error creating recipe:", error);
-    res.status(500).json({ error: "Failed to create recipe" });
+    const msg = String(error?.message || "");
+    const hint = /relation.*does not exist|column.*does not exist/i.test(msg)
+      ? "Database schema may be outdated. Run: pnpm db:push"
+      : "Failed to create recipe";
+    res.status(500).json({ error: hint });
   }
 });
 
