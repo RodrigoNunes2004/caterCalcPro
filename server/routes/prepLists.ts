@@ -269,6 +269,17 @@ function findInventoryMatchByName(ingredientName: string, inventoryItems: Invent
   return candidates[0];
 }
 
+function buildManualTaskLabel(task: string, quantity: number, unit: string, ingredient: string): string {
+  const cleanTask = String(task || "").trim();
+  const cleanIngredient = String(ingredient || "").trim();
+  const cleanUnit = String(unit || "").trim();
+  const qty = Number(quantity);
+  const hasIngredientInTask = cleanTask.toLowerCase().includes(cleanIngredient.toLowerCase());
+  if (!cleanTask) return `${qty} ${cleanUnit} ${cleanIngredient}`.trim();
+  if (hasIngredientInTask) return cleanTask;
+  return `${cleanTask} ${qty} ${cleanUnit} ${cleanIngredient}`.replace(/\s+/g, " ").trim();
+}
+
 // Map ingredients to chef prep actions (chop, peel, dice, etc.)
 function getPrepAction(ingredientName: string): string {
   const name = ingredientName.toLowerCase().trim();
@@ -671,7 +682,7 @@ router.post("/prep-lists/:id/manual-tasks", async (req: AuthRequest, res) => {
     const updated = await storage.addManualPrepTask({
       prepListId: id,
       organizationId: orgId,
-      task: task.trim(),
+      task: buildManualTaskLabel(task.trim(), qty, unit.trim(), ingredient.trim()),
       ingredient: ingredient.trim(),
       quantity: qty,
       unit: unit.trim(),
@@ -682,6 +693,59 @@ router.post("/prep-lists/:id/manual-tasks", async (req: AuthRequest, res) => {
   } catch (error) {
     console.error("Error adding manual prep task:", error);
     res.status(500).json({ error: "Failed to add manual prep task" });
+  }
+});
+
+router.patch("/prep-lists/:id/manual-tasks/:taskId", async (req: AuthRequest, res) => {
+  try {
+    const orgId = req.auth!.organizationId;
+    const { id, taskId } = req.params;
+    const { task, ingredient, quantity, unit, category } = req.body as {
+      task: string;
+      ingredient: string;
+      quantity: number;
+      unit: string;
+      category?: string;
+    };
+    if (!task?.trim() || !ingredient?.trim() || !unit?.trim()) {
+      return res.status(400).json({ error: "task, ingredient and unit are required" });
+    }
+    const qty = Number(quantity);
+    if (!Number.isFinite(qty) || qty <= 0) {
+      return res.status(400).json({ error: "quantity must be a positive number" });
+    }
+    const updated = await storage.updateManualPrepTask({
+      prepListId: id,
+      taskId,
+      organizationId: orgId,
+      task: buildManualTaskLabel(task.trim(), qty, unit.trim(), ingredient.trim()),
+      ingredient: ingredient.trim(),
+      quantity: qty,
+      unit: unit.trim(),
+      category: category?.trim() || "other",
+    });
+    if (!updated) return res.status(404).json({ error: "Prep list or task not found" });
+    res.json(updated);
+  } catch (error) {
+    console.error("Error updating manual prep task:", error);
+    res.status(500).json({ error: "Failed to update manual prep task" });
+  }
+});
+
+router.delete("/prep-lists/:id/manual-tasks/:taskId", async (req: AuthRequest, res) => {
+  try {
+    const orgId = req.auth!.organizationId;
+    const { id, taskId } = req.params;
+    const updated = await storage.deleteManualPrepTask({
+      prepListId: id,
+      taskId,
+      organizationId: orgId,
+    });
+    if (!updated) return res.status(404).json({ error: "Prep list or task not found" });
+    res.json(updated);
+  } catch (error) {
+    console.error("Error deleting manual prep task:", error);
+    res.status(500).json({ error: "Failed to delete manual prep task" });
   }
 });
 

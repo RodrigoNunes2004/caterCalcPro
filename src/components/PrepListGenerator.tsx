@@ -15,6 +15,8 @@ import {
   ShoppingCart,
   Printer,
   Archive,
+  Pencil,
+  Trash2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -62,6 +64,13 @@ interface PrepListGeneratorProps {
 
 type WorkflowStatus = "in_preparation" | "done" | "archived";
 
+interface OverrideIngredientOption {
+  ingredientId: string;
+  ingredientName: string;
+  defaultUnit: string;
+  recipeName: string;
+}
+
 export default function PrepListGenerator({ onSave }: PrepListGeneratorProps) {
   const { toast } = useToast();
   const [events, setEvents] = useState<Event[]>([]);
@@ -78,12 +87,17 @@ export default function PrepListGenerator({ onSave }: PrepListGeneratorProps) {
   const [activeTab, setActiveTab] = useState<string>("setup");
   const [statusUpdating, setStatusUpdating] = useState(false);
   const [manualTask, setManualTask] = useState({
+    id: "",
     task: "",
     ingredient: "",
     quantity: 0,
     unit: "g",
     category: "other",
   });
+  const [overrideOptions, setOverrideOptions] = useState<OverrideIngredientOption[]>([]);
+  const [userOverrides, setUserOverrides] = useState<
+    Record<string, { quantity: number; unit: string }>
+  >({});
 
   // Fetch events and menus
   useEffect(() => {
@@ -116,6 +130,52 @@ export default function PrepListGenerator({ onSave }: PrepListGeneratorProps) {
 
     fetchData();
   }, []);
+
+  useEffect(() => {
+    const fetchOverrideOptions = async () => {
+      if (!selectedMenus.length) {
+        setOverrideOptions([]);
+        setUserOverrides({});
+        return;
+      }
+      try {
+        const responses = await Promise.all(
+          selectedMenus.map((menuId) =>
+            fetch(`/api/menus/${menuId}`, { credentials: "include" })
+          )
+        );
+        const details = await Promise.all(
+          responses.map(async (response) =>
+            response.ok ? response.json() : null
+          )
+        );
+        const optionMap = new Map<string, OverrideIngredientOption>();
+        for (const menu of details) {
+          if (!menu?.recipes?.length) continue;
+          for (const menuRecipe of menu.recipes) {
+            const recipeName = menuRecipe?.recipe?.name || "Recipe";
+            const ingredients = menuRecipe?.recipe?.ingredients || [];
+            for (const recipeIngredient of ingredients) {
+              const ingredient = recipeIngredient?.ingredient;
+              if (!ingredient?.id || !ingredient?.name) continue;
+              if (optionMap.has(ingredient.id)) continue;
+              optionMap.set(ingredient.id, {
+                ingredientId: ingredient.id,
+                ingredientName: ingredient.name,
+                defaultUnit: recipeIngredient.unit || ingredient.defaultUnit || "g",
+                recipeName,
+              });
+            }
+          }
+        }
+        setOverrideOptions(Array.from(optionMap.values()));
+      } catch (error) {
+        console.error("Failed to fetch override ingredients:", error);
+        setOverrideOptions([]);
+      }
+    };
+    fetchOverrideOptions();
+  }, [selectedMenus]);
 
   // Filter menus based on search term
   const filteredMenus = Array.isArray(menus)
@@ -158,6 +218,7 @@ export default function PrepListGenerator({ onSave }: PrepListGeneratorProps) {
           menuIds: selectedMenus,
           guestCount: guestCount,
           portionsPerPerson: portionsPerPerson,
+          userOverrides,
         }),
       });
 
@@ -243,8 +304,13 @@ export default function PrepListGenerator({ onSave }: PrepListGeneratorProps) {
       return;
     }
     try {
-      const response = await fetch(`/api/prep-lists/${prepList.id}/manual-tasks`, {
-        method: "POST",
+      const isEditing = Boolean(manualTask.id);
+      const response = await fetch(
+        isEditing
+          ? `/api/prep-lists/${prepList.id}/manual-tasks/${manualTask.id}`
+          : `/api/prep-lists/${prepList.id}/manual-tasks`,
+        {
+        method: isEditing ? "PATCH" : "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -257,10 +323,11 @@ export default function PrepListGenerator({ onSave }: PrepListGeneratorProps) {
       });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) {
-        throw new Error(data?.error || "Failed to add task");
+        throw new Error(data?.error || (isEditing ? "Failed to update task" : "Failed to add task"));
       }
       setPrepList((prev: any) => ({ ...data, menus: data.menus || prev?.menus || [] }));
       setManualTask({
+        id: "",
         task: "",
         ingredient: "",
         quantity: 0,
@@ -268,13 +335,57 @@ export default function PrepListGenerator({ onSave }: PrepListGeneratorProps) {
         category: "other",
       });
       toast({
-        title: "Task added",
-        description: "Manual chef task added to prep list.",
+        title: isEditing ? "Task updated" : "Task added",
+        description: isEditing ? "Manual chef task updated." : "Manual chef task added to prep list.",
       });
     } catch (error: any) {
       toast({
         title: "Failed to add task",
         description: error?.message || "Could not add manual task.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const startEditManualTask = (task: any) => {
+    setManualTask({
+      id: task.id || "",
+      task: task.task || "",
+      ingredient: task.ingredient || "",
+      quantity: Number(task.quantity) || 0,
+      unit: task.unit || "g",
+      category: task.category || "other",
+    });
+  };
+
+  const deleteManualTask = async (taskId: string) => {
+    if (!prepList?.id || !taskId) return;
+    try {
+      const response = await fetch(
+        `/api/prep-lists/${prepList.id}/manual-tasks/${taskId}`,
+        {
+          method: "DELETE",
+          credentials: "include",
+        }
+      );
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data?.error || "Failed to delete task");
+      setPrepList((prev: any) => ({ ...data, menus: data.menus || prev?.menus || [] }));
+      if (manualTask.id === taskId) {
+        setManualTask({
+          id: "",
+          task: "",
+          ingredient: "",
+          quantity: 0,
+          unit: "g",
+          category: "other",
+        });
+      }
+      toast({ title: "Task deleted", description: "Manual task removed from prep list." });
+    } catch (error: any) {
+      toast({
+        title: "Delete failed",
+        description: error?.message || "Could not delete task.",
         variant: "destructive",
       });
     }
@@ -575,6 +686,39 @@ ${prepList.purchaseList
     }
   };
 
+  const setOverrideQuantity = (ingredientId: string, value: number) => {
+    setUserOverrides((prev) => {
+      const existing = prev[ingredientId];
+      const nextValue = Number.isFinite(value) ? value : 0;
+      if (nextValue <= 0) {
+        const { [ingredientId]: _removed, ...rest } = prev;
+        return rest;
+      }
+      return {
+        ...prev,
+        [ingredientId]: {
+          quantity: nextValue,
+          unit: existing?.unit || "g",
+        },
+      };
+    });
+  };
+
+  const setOverrideUnit = (ingredientId: string, unit: string, fallbackQty: number) => {
+    setUserOverrides((prev) => {
+      const existing = prev[ingredientId];
+      const quantity = existing?.quantity || fallbackQty || 0;
+      if (quantity <= 0) return prev;
+      return {
+        ...prev,
+        [ingredientId]: {
+          quantity,
+          unit: unit || existing?.unit || "g",
+        },
+      };
+    });
+  };
+
   return (
     <div className="space-y-6">
       <Card>
@@ -824,16 +968,85 @@ ${prepList.purchaseList
                 className="min-h-screen p-6 -m-6"
                 style={{ backgroundColor: "hsl(var(--background))" }}
               >
-                <div className="text-center py-8">
-                  <Edit3 className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                  <h3 className="text-lg font-semibold mb-2">
-                    Custom Overrides
-                  </h3>
-                  <p className="text-gray-600">
-                    Customize ingredient quantities and overrides will be
-                    available here.
-                  </p>
-                </div>
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Custom Overrides</CardTitle>
+                    <CardDescription>
+                      Override ingredient quantity/unit before generating the prep list. Overrides apply to matching ingredients across selected menus.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    {!selectedMenus.length ? (
+                      <p className="text-sm text-muted-foreground">
+                        Select at least one menu in Setup to configure overrides.
+                      </p>
+                    ) : overrideOptions.length === 0 ? (
+                      <p className="text-sm text-muted-foreground">
+                        No ingredient options found yet for selected menus.
+                      </p>
+                    ) : (
+                      <div className="space-y-3">
+                        {overrideOptions.map((opt) => {
+                          const current = userOverrides[opt.ingredientId];
+                          return (
+                            <div
+                              key={opt.ingredientId}
+                              className="grid grid-cols-1 md:grid-cols-12 gap-3 p-3 border rounded-lg"
+                            >
+                              <div className="md:col-span-5">
+                                <div className="font-medium">{opt.ingredientName}</div>
+                                <div className="text-xs text-muted-foreground">
+                                  From: {opt.recipeName}
+                                </div>
+                              </div>
+                              <div className="md:col-span-3">
+                                <Input
+                                  type="number"
+                                  step="0.1"
+                                  min="0"
+                                  value={current?.quantity ?? ""}
+                                  placeholder="Override qty"
+                                  onChange={(e) =>
+                                    setOverrideQuantity(
+                                      opt.ingredientId,
+                                      parseFloat(e.target.value) || 0
+                                    )
+                                  }
+                                />
+                              </div>
+                              <div className="md:col-span-2">
+                                <Input
+                                  value={current?.unit ?? opt.defaultUnit}
+                                  onChange={(e) =>
+                                    setOverrideUnit(
+                                      opt.ingredientId,
+                                      e.target.value,
+                                      current?.quantity ?? 0
+                                    )
+                                  }
+                                />
+                              </div>
+                              <div className="md:col-span-2 flex items-center">
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() =>
+                                    setUserOverrides((prev) => {
+                                      const { [opt.ingredientId]: _removed, ...rest } = prev;
+                                      return rest;
+                                    })
+                                  }
+                                >
+                                  Clear
+                                </Button>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
               </div>
             </TabsContent>
 
@@ -901,7 +1114,9 @@ ${prepList.purchaseList
 
                     <Card>
                       <CardHeader>
-                        <CardTitle className="text-base">Add Manual Chef Task</CardTitle>
+                        <CardTitle className="text-base">
+                          {manualTask.id ? "Edit Manual Chef Task" : "Add Manual Chef Task"}
+                        </CardTitle>
                         <CardDescription>
                           Add extra work not tied to recipes. This is deducted from inventory when prep is marked done.
                         </CardDescription>
@@ -942,7 +1157,28 @@ ${prepList.purchaseList
                               setManualTask((prev) => ({ ...prev, unit: e.target.value }))
                             }
                           />
-                          <Button onClick={addManualTask}>Add Task</Button>
+                          <div className="flex items-center gap-2">
+                            <Button onClick={addManualTask}>
+                              {manualTask.id ? "Save Task" : "Add Task"}
+                            </Button>
+                            {manualTask.id && (
+                              <Button
+                                variant="outline"
+                                onClick={() =>
+                                  setManualTask({
+                                    id: "",
+                                    task: "",
+                                    ingredient: "",
+                                    quantity: 0,
+                                    unit: "g",
+                                    category: "other",
+                                  })
+                                }
+                              >
+                                Cancel
+                              </Button>
+                            )}
+                          </div>
                         </div>
                       </CardContent>
                     </Card>
@@ -993,6 +1229,24 @@ ${prepList.purchaseList
                                     <Badge variant="outline" className="text-xs">
                                       Manual
                                     </Badge>
+                                  )}
+                                  {task.isManual && (
+                                    <>
+                                      <Button
+                                        size="sm"
+                                        variant="outline"
+                                        onClick={() => startEditManualTask(task)}
+                                      >
+                                        <Pencil className="h-3 w-3" />
+                                      </Button>
+                                      <Button
+                                        size="sm"
+                                        variant="outline"
+                                        onClick={() => deleteManualTask(task.id)}
+                                      >
+                                        <Trash2 className="h-3 w-3" />
+                                      </Button>
+                                    </>
                                   )}
                                   <Badge variant="secondary" className="text-xs">
                                     Medium
