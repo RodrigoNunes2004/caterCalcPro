@@ -280,6 +280,12 @@ function buildManualTaskLabel(task: string, quantity: number, unit: string, ingr
   return `${cleanTask} ${qty} ${cleanUnit} ${cleanIngredient}`.replace(/\s+/g, " ").trim();
 }
 
+function normalizeMoneyLike(value: unknown): number {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return 0;
+  return Math.round(n * 100) / 100;
+}
+
 // Map ingredients to chef prep actions (chop, peel, dice, etc.)
 function getPrepAction(ingredientName: string): string {
   const name = ingredientName.toLowerCase().trim();
@@ -583,6 +589,19 @@ router.post("/prep-lists", async (req: AuthRequest, res) => {
   }
 });
 
+router.get("/prep-lists", async (req: AuthRequest, res) => {
+  try {
+    const orgId = req.auth!.organizationId;
+    const limit = Number(req.query.limit ?? 50);
+    const offset = Number(req.query.offset ?? 0);
+    const lists = await storage.getPrepLists(orgId, { limit, offset });
+    res.json({ lists, total: lists.length });
+  } catch (error) {
+    console.error("Error fetching prep lists:", error);
+    res.status(500).json({ error: "Failed to fetch prep lists" });
+  }
+});
+
 // Get prep list by ID (for future use)
 router.get("/prep-lists/:id", async (req: AuthRequest, res) => {
   try {
@@ -594,6 +613,19 @@ router.get("/prep-lists/:id", async (req: AuthRequest, res) => {
   } catch (error) {
     console.error("Error fetching prep list:", error);
     res.status(500).json({ error: "Failed to fetch prep list" });
+  }
+});
+
+router.delete("/prep-lists/:id", async (req: AuthRequest, res) => {
+  try {
+    const orgId = req.auth!.organizationId;
+    const { id } = req.params;
+    const deleted = await storage.deletePrepList(id, orgId);
+    if (!deleted) return res.status(404).json({ error: "Prep list not found" });
+    res.status(204).send();
+  } catch (error) {
+    console.error("Error deleting prep list:", error);
+    res.status(500).json({ error: "Failed to delete prep list" });
   }
 });
 
@@ -746,6 +778,99 @@ router.delete("/prep-lists/:id/manual-tasks/:taskId", async (req: AuthRequest, r
   } catch (error) {
     console.error("Error deleting manual prep task:", error);
     res.status(500).json({ error: "Failed to delete manual prep task" });
+  }
+});
+
+router.post("/prep-lists/:id/purchase-items", async (req: AuthRequest, res) => {
+  try {
+    const orgId = req.auth!.organizationId;
+    const { id } = req.params;
+    const { ingredient, needed, unit, currentStock, shortfall, category } = req.body as {
+      ingredient: string;
+      needed: number;
+      unit: string;
+      currentStock: number;
+      shortfall: number;
+      category?: string;
+    };
+    if (!ingredient?.trim() || !unit?.trim()) {
+      return res.status(400).json({ error: "ingredient and unit are required" });
+    }
+    const neededValue = normalizeMoneyLike(needed);
+    const currentStockValue = normalizeMoneyLike(currentStock);
+    const shortfallValue = normalizeMoneyLike(shortfall);
+    if (neededValue <= 0 && shortfallValue <= 0) {
+      return res.status(400).json({ error: "needed or shortfall must be greater than 0" });
+    }
+    const updated = await storage.addManualPurchaseItem({
+      prepListId: id,
+      organizationId: orgId,
+      ingredient: ingredient.trim(),
+      needed: neededValue,
+      unit: unit.trim(),
+      currentStock: currentStockValue,
+      shortfall: shortfallValue > 0 ? shortfallValue : Math.max(0, neededValue - currentStockValue),
+      category: category?.trim() || "other",
+    });
+    if (!updated) return res.status(404).json({ error: "Prep list not found" });
+    res.status(201).json(updated);
+  } catch (error) {
+    console.error("Error adding purchase item:", error);
+    res.status(500).json({ error: "Failed to add purchase item" });
+  }
+});
+
+router.patch("/prep-lists/:id/purchase-items/:itemId", async (req: AuthRequest, res) => {
+  try {
+    const orgId = req.auth!.organizationId;
+    const { id, itemId } = req.params;
+    const { ingredient, needed, unit, currentStock, shortfall, category } = req.body as {
+      ingredient: string;
+      needed: number;
+      unit: string;
+      currentStock: number;
+      shortfall: number;
+      category?: string;
+    };
+    if (!ingredient?.trim() || !unit?.trim()) {
+      return res.status(400).json({ error: "ingredient and unit are required" });
+    }
+    const neededValue = normalizeMoneyLike(needed);
+    const currentStockValue = normalizeMoneyLike(currentStock);
+    const shortfallValue = normalizeMoneyLike(shortfall);
+    const updated = await storage.updatePurchaseItem({
+      prepListId: id,
+      itemId,
+      organizationId: orgId,
+      ingredient: ingredient.trim(),
+      needed: neededValue,
+      unit: unit.trim(),
+      currentStock: currentStockValue,
+      shortfall: shortfallValue,
+      category: category?.trim() || "other",
+    });
+    if (!updated) return res.status(404).json({ error: "Prep list or item not found" });
+    res.json(updated);
+  } catch (error) {
+    console.error("Error updating purchase item:", error);
+    res.status(500).json({ error: "Failed to update purchase item" });
+  }
+});
+
+router.delete("/prep-lists/:id/purchase-items/:itemId", async (req: AuthRequest, res) => {
+  try {
+    const orgId = req.auth!.organizationId;
+    const { id, itemId } = req.params;
+    const updated = await storage.deletePurchaseItem({
+      prepListId: id,
+      itemId,
+      organizationId: orgId,
+    });
+    if (!updated) return res.status(404).json({ error: "Prep list or item not found" });
+    res.json(updated);
+  } catch (error) {
+    console.error("Error deleting purchase item:", error);
+    res.status(500).json({ error: "Failed to delete purchase item" });
   }
 });
 

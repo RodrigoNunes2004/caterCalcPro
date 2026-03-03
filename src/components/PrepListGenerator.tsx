@@ -71,6 +71,15 @@ interface OverrideIngredientOption {
   recipeName: string;
 }
 
+interface PrepListSummary {
+  id: string;
+  eventName: string;
+  guestCount: number;
+  generatedAt: string;
+  prepStatus: WorkflowStatus;
+  purchaseStatus: WorkflowStatus;
+}
+
 export default function PrepListGenerator({ onSave }: PrepListGeneratorProps) {
   const { toast } = useToast();
   const [events, setEvents] = useState<Event[]>([]);
@@ -98,6 +107,18 @@ export default function PrepListGenerator({ onSave }: PrepListGeneratorProps) {
   const [userOverrides, setUserOverrides] = useState<
     Record<string, { quantity: number; unit: string }>
   >({});
+  const [savedLists, setSavedLists] = useState<PrepListSummary[]>([]);
+  const [selectedSavedListId, setSelectedSavedListId] = useState<string>("");
+  const [loadingSavedLists, setLoadingSavedLists] = useState(false);
+  const [purchaseItemForm, setPurchaseItemForm] = useState({
+    id: "",
+    ingredient: "",
+    needed: 0,
+    unit: "kg",
+    currentStock: 0,
+    shortfall: 0,
+    category: "other",
+  });
 
   // Fetch events and menus
   useEffect(() => {
@@ -129,6 +150,26 @@ export default function PrepListGenerator({ onSave }: PrepListGeneratorProps) {
     };
 
     fetchData();
+  }, []);
+
+  const loadSavedLists = async () => {
+    setLoadingSavedLists(true);
+    try {
+      const response = await fetch("/api/prep-lists?limit=100", {
+        credentials: "include",
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data?.error || "Failed to fetch saved prep lists");
+      setSavedLists(Array.isArray(data.lists) ? data.lists : []);
+    } catch (error) {
+      console.error("Failed to load saved prep lists:", error);
+    } finally {
+      setLoadingSavedLists(false);
+    }
+  };
+
+  useEffect(() => {
+    loadSavedLists();
   }, []);
 
   useEffect(() => {
@@ -225,6 +266,8 @@ export default function PrepListGenerator({ onSave }: PrepListGeneratorProps) {
       if (response.ok) {
         const data = await response.json();
         setPrepList(data);
+        setSelectedSavedListId(data.id || "");
+        await loadSavedLists();
         setActiveTab("prep-list");
         const prepCount = data.prepTasks?.length || 0;
         const purchaseCount = data.purchaseList?.length || 0;
@@ -266,6 +309,7 @@ export default function PrepListGenerator({ onSave }: PrepListGeneratorProps) {
         throw new Error(data?.error || "Failed to update status");
       }
       setPrepList((prev: any) => ({ ...data, menus: data.menus || prev?.menus || [] }));
+      await loadSavedLists();
       toast({
         title: "Status updated",
         description:
@@ -326,6 +370,7 @@ export default function PrepListGenerator({ onSave }: PrepListGeneratorProps) {
         throw new Error(data?.error || (isEditing ? "Failed to update task" : "Failed to add task"));
       }
       setPrepList((prev: any) => ({ ...data, menus: data.menus || prev?.menus || [] }));
+      await loadSavedLists();
       setManualTask({
         id: "",
         task: "",
@@ -371,6 +416,7 @@ export default function PrepListGenerator({ onSave }: PrepListGeneratorProps) {
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data?.error || "Failed to delete task");
       setPrepList((prev: any) => ({ ...data, menus: data.menus || prev?.menus || [] }));
+      await loadSavedLists();
       if (manualTask.id === taskId) {
         setManualTask({
           id: "",
@@ -386,6 +432,155 @@ export default function PrepListGenerator({ onSave }: PrepListGeneratorProps) {
       toast({
         title: "Delete failed",
         description: error?.message || "Could not delete task.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const loadSavedPrepList = async () => {
+    if (!selectedSavedListId) return;
+    try {
+      const response = await fetch(`/api/prep-lists/${selectedSavedListId}`, {
+        credentials: "include",
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data?.error || "Failed to load prep list");
+      setPrepList(data);
+      setActiveTab("prep-list");
+      toast({ title: "Prep list loaded", description: `Loaded ${data.eventName}` });
+    } catch (error: any) {
+      toast({
+        title: "Load failed",
+        description: error?.message || "Could not load prep list.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const deleteSavedPrepList = async () => {
+    if (!selectedSavedListId) return;
+    const toDelete = savedLists.find((list) => list.id === selectedSavedListId);
+    const confirmed = window.confirm(
+      `Delete prep list${toDelete?.eventName ? ` for ${toDelete.eventName}` : ""}? This cannot be undone.`
+    );
+    if (!confirmed) return;
+    try {
+      const response = await fetch(`/api/prep-lists/${selectedSavedListId}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+      if (!response.ok && response.status !== 204) {
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data?.error || "Failed to delete prep list");
+      }
+      if (prepList?.id === selectedSavedListId) setPrepList(null);
+      setSelectedSavedListId("");
+      await loadSavedLists();
+      toast({ title: "Deleted", description: "Prep list removed from UI and database." });
+    } catch (error: any) {
+      toast({
+        title: "Delete failed",
+        description: error?.message || "Could not delete prep list.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const savePurchaseItem = async () => {
+    if (!prepList?.id) return;
+    const ingredient = purchaseItemForm.ingredient.trim();
+    const unit = purchaseItemForm.unit.trim();
+    if (!ingredient || !unit) {
+      toast({
+        title: "Missing fields",
+        description: "Ingredient and unit are required.",
+        variant: "destructive",
+      });
+      return;
+    }
+    const needed = Number(purchaseItemForm.needed) || 0;
+    const currentStock = Number(purchaseItemForm.currentStock) || 0;
+    const shortfall =
+      Number(purchaseItemForm.shortfall) > 0
+        ? Number(purchaseItemForm.shortfall)
+        : Math.max(0, needed - currentStock);
+    const isEditing = Boolean(purchaseItemForm.id);
+    try {
+      const response = await fetch(
+        isEditing
+          ? `/api/prep-lists/${prepList.id}/purchase-items/${purchaseItemForm.id}`
+          : `/api/prep-lists/${prepList.id}/purchase-items`,
+        {
+          method: isEditing ? "PATCH" : "POST",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            ingredient,
+            needed,
+            unit,
+            currentStock,
+            shortfall,
+            category: purchaseItemForm.category,
+          }),
+        }
+      );
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data?.error || "Failed to save purchase item");
+      setPrepList((prev: any) => ({ ...data, menus: data.menus || prev?.menus || [] }));
+      await loadSavedLists();
+      setPurchaseItemForm({
+        id: "",
+        ingredient: "",
+        needed: 0,
+        unit: "kg",
+        currentStock: 0,
+        shortfall: 0,
+        category: "other",
+      });
+      toast({
+        title: isEditing ? "Purchase item updated" : "Purchase item added",
+        description: "Changes saved.",
+      });
+    } catch (error: any) {
+      toast({
+        title: "Save failed",
+        description: error?.message || "Could not save purchase item.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const startEditPurchaseItem = (item: any) => {
+    setPurchaseItemForm({
+      id: item.id || "",
+      ingredient: item.ingredient || "",
+      needed: Number(item.needed) || 0,
+      unit: item.unit || "kg",
+      currentStock: Number(item.currentStock) || 0,
+      shortfall: Number(item.shortfall) || 0,
+      category: item.category || "other",
+    });
+  };
+
+  const deletePurchaseItem = async (itemId: string) => {
+    if (!prepList?.id || !itemId) return;
+    try {
+      const response = await fetch(
+        `/api/prep-lists/${prepList.id}/purchase-items/${itemId}`,
+        {
+          method: "DELETE",
+          credentials: "include",
+        }
+      );
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data?.error || "Failed to delete purchase item");
+      setPrepList((prev: any) => ({ ...data, menus: data.menus || prev?.menus || [] }));
+      await loadSavedLists();
+      toast({ title: "Deleted", description: "Purchase item deleted." });
+    } catch (error: any) {
+      toast({
+        title: "Delete failed",
+        description: error?.message || "Could not delete purchase item.",
         variant: "destructive",
       });
     }
@@ -777,6 +972,47 @@ ${prepList.purchaseList
 
             {/* Setup Tab */}
             <TabsContent value="setup" className="space-y-6 mt-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base">Saved Prep Lists</CardTitle>
+                  <CardDescription>
+                    Load, update, or delete previously generated prep lists from database.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    <Select value={selectedSavedListId} onValueChange={setSelectedSavedListId}>
+                      <SelectTrigger>
+                        <SelectValue
+                          placeholder={loadingSavedLists ? "Loading..." : "Select saved prep list"}
+                        />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {savedLists.map((list) => (
+                          <SelectItem key={list.id} value={list.id}>
+                            {list.eventName} - {new Date(list.generatedAt).toLocaleDateString()}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Button
+                      variant="outline"
+                      onClick={loadSavedPrepList}
+                      disabled={!selectedSavedListId}
+                    >
+                      Load Selected
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={deleteSavedPrepList}
+                      disabled={!selectedSavedListId}
+                    >
+                      Delete Selected
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+
               {/* Event Selection */}
               <div className="space-y-2">
                 <Label htmlFor="event-select">Select Event</Label>
@@ -1350,6 +1586,94 @@ ${prepList.purchaseList
                     </div>
 
                     <div className="space-y-4">
+                      <Card>
+                        <CardHeader>
+                          <CardTitle className="text-base">
+                            {purchaseItemForm.id ? "Edit Purchase Item" : "Add Purchase Item"}
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="grid grid-cols-1 md:grid-cols-6 gap-3">
+                            <Input
+                              placeholder="Ingredient"
+                              value={purchaseItemForm.ingredient}
+                              onChange={(e) =>
+                                setPurchaseItemForm((prev) => ({ ...prev, ingredient: e.target.value }))
+                              }
+                            />
+                            <Input
+                              type="number"
+                              min="0"
+                              step="0.1"
+                              placeholder="Needed"
+                              value={purchaseItemForm.needed || ""}
+                              onChange={(e) =>
+                                setPurchaseItemForm((prev) => ({
+                                  ...prev,
+                                  needed: parseFloat(e.target.value) || 0,
+                                }))
+                              }
+                            />
+                            <Input
+                              placeholder="Unit"
+                              value={purchaseItemForm.unit}
+                              onChange={(e) =>
+                                setPurchaseItemForm((prev) => ({ ...prev, unit: e.target.value }))
+                              }
+                            />
+                            <Input
+                              type="number"
+                              min="0"
+                              step="0.1"
+                              placeholder="Current stock"
+                              value={purchaseItemForm.currentStock || ""}
+                              onChange={(e) =>
+                                setPurchaseItemForm((prev) => ({
+                                  ...prev,
+                                  currentStock: parseFloat(e.target.value) || 0,
+                                }))
+                              }
+                            />
+                            <Input
+                              type="number"
+                              min="0"
+                              step="0.1"
+                              placeholder="Shortfall"
+                              value={purchaseItemForm.shortfall || ""}
+                              onChange={(e) =>
+                                setPurchaseItemForm((prev) => ({
+                                  ...prev,
+                                  shortfall: parseFloat(e.target.value) || 0,
+                                }))
+                              }
+                            />
+                            <div className="flex items-center gap-2">
+                              <Button onClick={savePurchaseItem}>
+                                {purchaseItemForm.id ? "Save" : "Add"}
+                              </Button>
+                              {purchaseItemForm.id && (
+                                <Button
+                                  variant="outline"
+                                  onClick={() =>
+                                    setPurchaseItemForm({
+                                      id: "",
+                                      ingredient: "",
+                                      needed: 0,
+                                      unit: "kg",
+                                      currentStock: 0,
+                                      shortfall: 0,
+                                      category: "other",
+                                    })
+                                  }
+                                >
+                                  Cancel
+                                </Button>
+                              )}
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+
                       {prepList.purchaseList.map((item: any, index: number) => (
                         <Card key={index}>
                           <CardContent className="p-4">
@@ -1380,6 +1704,22 @@ ${prepList.purchaseList
                                     ? "Partial stock"
                                     : "Not in stock"}
                                 </Badge>
+                                <div className="flex items-center justify-end gap-2 mt-2">
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => startEditPurchaseItem(item)}
+                                  >
+                                    <Pencil className="h-3 w-3" />
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => deletePurchaseItem(item.id)}
+                                  >
+                                    <Trash2 className="h-3 w-3" />
+                                  </Button>
+                                </div>
                               </div>
                             </div>
                           </CardContent>

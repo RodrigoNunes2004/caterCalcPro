@@ -867,6 +867,34 @@ export const storage = {
     };
   },
 
+  async getPrepLists(
+    organizationId: string,
+    options?: { limit?: number; offset?: number }
+  ): Promise<any[]> {
+    const limit = Math.max(1, Number(options?.limit ?? 50));
+    const offset = Math.max(0, Number(options?.offset ?? 0));
+    const result = await db.execute(sql`
+      SELECT *
+      FROM "prep_lists"
+      WHERE "organization_id" = ${organizationId}
+      ORDER BY "created_at" DESC
+      LIMIT ${limit}
+      OFFSET ${offset}
+    `);
+    const rows = ((result as any).rows ?? []) as any[];
+    return rows.map((r) => ({
+      id: String(r.id),
+      eventId: r.event_id ? String(r.event_id) : "",
+      eventName: String(r.event_name ?? ""),
+      guestCount: Number(r.guest_count ?? 0),
+      portionsPerPerson: parseFloat(String(r.portions_per_person ?? 1)) || 1,
+      generatedAt: r.created_at ? new Date(r.created_at).toISOString() : new Date().toISOString(),
+      prepStatus: String(r.prep_status ?? "in_preparation"),
+      purchaseStatus: String(r.purchase_status ?? "in_preparation"),
+      prepInventoryApplied: !!r.prep_inventory_applied,
+    }));
+  },
+
   async updatePrepListStatus(data: {
     id: string;
     organizationId: string;
@@ -895,6 +923,15 @@ export const storage = {
       SET "prep_inventory_applied" = true, "updated_at" = now()
       WHERE "id" = ${id} AND "organization_id" = ${organizationId}
     `);
+  },
+
+  async deletePrepList(id: string, organizationId: string): Promise<boolean> {
+    const result = await db.execute(sql`
+      DELETE FROM "prep_lists"
+      WHERE "id" = ${id} AND "organization_id" = ${organizationId}
+      RETURNING "id"
+    `);
+    return !!((result as any).rows?.[0]?.id);
   },
 
   async addManualPrepTask(data: {
@@ -994,6 +1031,116 @@ export const storage = {
         AND "prep_list_id" = ${data.prepListId}
         AND "kind" = 'prep'
         AND "is_manual" = true
+    `);
+    return this.getPrepListRecord(data.prepListId, data.organizationId);
+  },
+
+  async addManualPurchaseItem(data: {
+    prepListId: string;
+    organizationId: string;
+    ingredient: string;
+    needed: number;
+    unit: string;
+    currentStock: number;
+    shortfall: number;
+    category?: string;
+  }): Promise<any> {
+    const exists = await db.execute(sql`
+      SELECT 1
+      FROM "prep_lists"
+      WHERE "id" = ${data.prepListId} AND "organization_id" = ${data.organizationId}
+      LIMIT 1
+    `);
+    if (!((exists as any).rows?.[0])) return null;
+
+    await db.execute(sql`
+      INSERT INTO "prep_list_items" (
+        "prep_list_id",
+        "kind",
+        "task",
+        "ingredient",
+        "quantity",
+        "unit",
+        "category",
+        "needed",
+        "current_stock",
+        "shortfall",
+        "is_manual"
+      )
+      VALUES (
+        ${data.prepListId},
+        'purchase',
+        ${`Buy ${Math.round((data.shortfall ?? 0) * 100) / 100} ${data.unit} ${data.ingredient}`},
+        ${data.ingredient},
+        ${String(data.shortfall ?? 0)},
+        ${data.unit},
+        ${data.category || "other"},
+        ${String(data.needed ?? 0)},
+        ${String(data.currentStock ?? 0)},
+        ${String(data.shortfall ?? 0)},
+        true
+      )
+    `);
+    return this.getPrepListRecord(data.prepListId, data.organizationId);
+  },
+
+  async updatePurchaseItem(data: {
+    prepListId: string;
+    itemId: string;
+    organizationId: string;
+    ingredient: string;
+    needed: number;
+    unit: string;
+    currentStock: number;
+    shortfall: number;
+    category?: string;
+  }): Promise<any> {
+    const exists = await db.execute(sql`
+      SELECT 1
+      FROM "prep_lists"
+      WHERE "id" = ${data.prepListId} AND "organization_id" = ${data.organizationId}
+      LIMIT 1
+    `);
+    if (!((exists as any).rows?.[0])) return null;
+
+    await db.execute(sql`
+      UPDATE "prep_list_items"
+      SET
+        "task" = ${`Buy ${Math.round((data.shortfall ?? 0) * 100) / 100} ${data.unit} ${data.ingredient}`},
+        "ingredient" = ${data.ingredient},
+        "quantity" = ${String(data.shortfall ?? 0)},
+        "unit" = ${data.unit},
+        "category" = ${data.category || "other"},
+        "needed" = ${String(data.needed ?? 0)},
+        "current_stock" = ${String(data.currentStock ?? 0)},
+        "shortfall" = ${String(data.shortfall ?? 0)}
+      WHERE
+        "id" = ${data.itemId}
+        AND "prep_list_id" = ${data.prepListId}
+        AND "kind" = 'purchase'
+    `);
+    return this.getPrepListRecord(data.prepListId, data.organizationId);
+  },
+
+  async deletePurchaseItem(data: {
+    prepListId: string;
+    itemId: string;
+    organizationId: string;
+  }): Promise<any> {
+    const exists = await db.execute(sql`
+      SELECT 1
+      FROM "prep_lists"
+      WHERE "id" = ${data.prepListId} AND "organization_id" = ${data.organizationId}
+      LIMIT 1
+    `);
+    if (!((exists as any).rows?.[0])) return null;
+
+    await db.execute(sql`
+      DELETE FROM "prep_list_items"
+      WHERE
+        "id" = ${data.itemId}
+        AND "prep_list_id" = ${data.prepListId}
+        AND "kind" = 'purchase'
     `);
     return this.getPrepListRecord(data.prepListId, data.organizationId);
   },
