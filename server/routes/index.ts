@@ -8,6 +8,7 @@ import eventsRoutes from "./events.js";
 import menuRoutes from "./menus.js";
 import prepListRoutes from "./prepLists.js";
 import inventoryRoutes from "./inventory.js";
+import billingRoutes from "./billing.js";
 
 export async function registerRoutes(app: Express) {
   const httpServer = createServer(app);
@@ -20,6 +21,7 @@ export async function registerRoutes(app: Express) {
   app.use("/api", menuRoutes);
   app.use("/api", prepListRoutes);
   app.use("/api", inventoryRoutes);
+  app.use("/api", billingRoutes);
 
   return httpServer;
 }

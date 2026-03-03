@@ -396,12 +396,32 @@ async function ensurePrepWorkflowTables() {
   `);
 }
 
+// Ensure organization billing columns exist (both local and production DBs)
+async function ensureOrganizationBillingColumns() {
+  await db.execute(sql`
+    ALTER TABLE "organizations" ADD COLUMN IF NOT EXISTS "stripe_customer_id" text;
+  `);
+  await db.execute(sql`
+    ALTER TABLE "organizations" ADD COLUMN IF NOT EXISTS "stripe_subscription_id" text;
+  `);
+  await db.execute(sql`
+    ALTER TABLE "organizations" ADD COLUMN IF NOT EXISTS "stripe_price_id" text;
+  `);
+  await db.execute(sql`
+    ALTER TABLE "organizations" ADD COLUMN IF NOT EXISTS "billing_email" text;
+  `);
+  await db.execute(sql`
+    ALTER TABLE "organizations" ADD COLUMN IF NOT EXISTS "subscription_current_period_end" timestamp;
+  `);
+}
+
 // Run schema sync then sample data
 export async function initStorage(): Promise<void> {
   await ensureAuthTables();
   await ensureMenusTable();
   await ensureInventoryTable();
   await ensurePrepWorkflowTables();
+  await ensureOrganizationBillingColumns();
   await ensureOrganizationIdColumns();
   await safeInitializeSampleData();
 }
@@ -1598,6 +1618,62 @@ export const storage = {
     return {
       comparison: [],
     };
+  },
+
+  async getOrganizationBilling(organizationId: string): Promise<any> {
+    const result = await db
+      .select()
+      .from(organizations)
+      .where(eq(organizations.id, organizationId))
+      .limit(1);
+    return result[0] || null;
+  },
+
+  async updateOrganizationBillingById(
+    organizationId: string,
+    data: {
+      plan?: string;
+      subscriptionStatus?: string;
+      stripeCustomerId?: string | null;
+      stripeSubscriptionId?: string | null;
+      stripePriceId?: string | null;
+      billingEmail?: string | null;
+      subscriptionCurrentPeriodEnd?: Date | null;
+    }
+  ): Promise<any> {
+    const result = await db
+      .update(organizations)
+      .set({
+        ...data,
+        updatedAt: new Date(),
+      } as any)
+      .where(eq(organizations.id, organizationId))
+      .returning();
+    return result[0] || null;
+  },
+
+  async updateOrganizationBillingByStripeCustomerId(
+    stripeCustomerId: string,
+    data: {
+      plan?: string;
+      subscriptionStatus?: string;
+      stripeSubscriptionId?: string | null;
+      stripePriceId?: string | null;
+      billingEmail?: string | null;
+      subscriptionCurrentPeriodEnd?: Date | null;
+    }
+  ): Promise<any> {
+    const customerId = String(stripeCustomerId || "").trim();
+    if (!customerId) return null;
+    const result = await db
+      .update(organizations)
+      .set({
+        ...data,
+        updatedAt: new Date(),
+      } as any)
+      .where(eq(organizations.stripeCustomerId, customerId))
+      .returning();
+    return result[0] || null;
   },
 
   // Utility methods for data management

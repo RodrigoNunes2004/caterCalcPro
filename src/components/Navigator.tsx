@@ -11,6 +11,7 @@ import {
   X,
   Scale,
   LogOut,
+  CreditCard,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -61,6 +62,7 @@ export default function Navigation({
     { path: "/inventory", label: "Inventory", icon: Package },
     { path: "/prep-list", label: "Prep Lists", icon: Calculator },
     { path: "/unit-converter", label: "Unit Converter", icon: Scale },
+    { path: "/billing", label: "Billing", icon: CreditCard },
   ];
 
   const handleNavigation = (path: string) => {

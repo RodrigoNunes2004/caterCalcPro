@@ -20,6 +20,11 @@ export const organizations = pgTable("organizations", {
   subscriptionStatus: varchar("subscription_status", {
     length: 20,
   }).default("trialing"), // trialing | active | cancelled
+  stripeCustomerId: text("stripe_customer_id"),
+  stripeSubscriptionId: text("stripe_subscription_id"),
+  stripePriceId: text("stripe_price_id"),
+  billingEmail: text("billing_email"),
+  subscriptionCurrentPeriodEnd: timestamp("subscription_current_period_end"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });

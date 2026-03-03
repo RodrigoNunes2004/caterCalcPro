@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { storage } from "../storage.js";
 import { authMiddleware, type AuthRequest } from "../middleware/auth.js";
+import { requireBillingAccess } from "../middleware/billing.js";
 import {
   insertEventSchema,
   updateEventSchema,
@@ -8,7 +9,7 @@ import {
 } from "../../shared/schema.js";
 
 const router = Router();
-router.use(authMiddleware);
+router.use(authMiddleware, requireBillingAccess);
 
 // Get all events with pagination and search
 router.get("/events", async (req: AuthRequest, res) => {

@@ -1,9 +1,10 @@
 import { Router } from "express";
 import { storage } from "../storage.js";
 import { authMiddleware, type AuthRequest } from "../middleware/auth.js";
+import { requireBillingAccess } from "../middleware/billing.js";
 
 const router = Router();
-router.use(authMiddleware);
+router.use(authMiddleware, requireBillingAccess);
 
 // GET /api/inventory - List all inventory items for the org
 router.get("/inventory", async (req: AuthRequest, res) => {

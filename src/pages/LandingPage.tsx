@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import {
   ChefHat,
@@ -17,6 +17,7 @@ import {
   Shield,
   Mail,
   Eye,
+  CreditCard,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -129,9 +130,43 @@ const useCases = [
 
 export default function LandingPage() {
   const navigate = useNavigate();
+  const [stripeLoading, setStripeLoading] = useState(false);
 
   const handleGoToApp = () => {
     navigate("/login");
+  };
+
+  const handleStartStripeCheckout = async () => {
+    try {
+      setStripeLoading(true);
+      const baseUrl = window.location.origin;
+      const response = await fetch("/api/billing/create-checkout-session", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          successUrl: `${baseUrl}/register?billing=success`,
+          cancelUrl: `${baseUrl}/?billing=cancelled`,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Unable to start Stripe checkout");
+      }
+
+      const data = await response.json();
+      if (data?.url) {
+        window.location.href = data.url;
+        return;
+      }
+      throw new Error("Stripe checkout URL not returned");
+    } catch (error) {
+      console.error("Stripe checkout error:", error);
+      alert("Stripe checkout is not configured yet. Please use Start Free Trial for now.");
+    } finally {
+      setStripeLoading(false);
+    }
   };
 
   return (
@@ -315,6 +350,50 @@ export default function LandingPage() {
               <CheckCircle className="h-5 w-5 text-green-500" />
               <span>Cancel anytime</span>
             </div>
+          </div>
+        </div>
+      </section>
+
+      {/* How It Works */}
+      <section className="py-16 bg-orange-50">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center mb-10">
+            <h2 className="text-3xl font-bold text-gray-900 mb-3">How It Works</h2>
+            <p className="text-lg text-gray-600">
+              A clearer workflow for teams: plan, prep, and price with confidence.
+            </p>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <Card className="border-orange-200">
+              <CardHeader>
+                <CardTitle className="text-lg">1. Build Menus & Events</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-gray-600">
+                  Attach recipes to events, scale for guest count, and set cost coverage targets.
+                </p>
+              </CardContent>
+            </Card>
+            <Card className="border-orange-200">
+              <CardHeader>
+                <CardTitle className="text-lg">2. Generate Prep & Purchase Lists</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-gray-600">
+                  Auto-generate chef-ready tasks and buying lists with full status workflow.
+                </p>
+              </CardContent>
+            </Card>
+            <Card className="border-orange-200">
+              <CardHeader>
+                <CardTitle className="text-lg">3. Price Events Fairly</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-gray-600">
+                  Use inventory-aware costs to calculate target sale price and margin in real time.
+                </p>
+              </CardContent>
+            </Card>
           </div>
         </div>
       </section>
@@ -507,6 +586,15 @@ export default function LandingPage() {
                     Start Your Free Trial
                     <ArrowRight className="h-5 w-5 ml-2" />
                   </Link>
+                </Button>
+                <Button
+                  variant="outline"
+                  className="w-full mt-3 text-lg py-3"
+                  onClick={handleStartStripeCheckout}
+                  disabled={stripeLoading}
+                >
+                  <CreditCard className="h-5 w-5 mr-2" />
+                  {stripeLoading ? "Redirecting..." : "Subscribe with Stripe"}
                 </Button>
               </CardContent>
             </Card>

@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { storage, db } from "../storage.js";
 import { authMiddleware, type AuthRequest } from "../middleware/auth.js";
+import { requireBillingAccess } from "../middleware/billing.js";
 import {
   recipes,
   ingredients,
@@ -15,7 +16,7 @@ import {
 import { eq, desc } from "drizzle-orm";
 
 const router = Router();
-router.use(authMiddleware);
+router.use(authMiddleware, requireBillingAccess);
 
 // Get all recipes with pagination and search
 router.get("/recipes", async (req: AuthRequest, res) => {

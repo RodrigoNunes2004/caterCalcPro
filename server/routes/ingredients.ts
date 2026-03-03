@@ -1,13 +1,14 @@
 import { Router } from "express";
 import { storage } from "../storage.js";
 import { authMiddleware, type AuthRequest } from "../middleware/auth.js";
+import { requireBillingAccess } from "../middleware/billing.js";
 import {
   insertIngredientSchema,
   updateIngredientSchema,
 } from "../../shared/schema.js";
 
 const router = Router();
-router.use(authMiddleware);
+router.use(authMiddleware, requireBillingAccess);
 
 // Get all ingredients with pagination and search
 router.get("/ingredients", async (req: AuthRequest, res) => {

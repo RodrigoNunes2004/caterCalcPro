@@ -1,9 +1,10 @@
 import { Router } from "express";
 import { storage } from "../storage.js";
 import { authMiddleware, type AuthRequest } from "../middleware/auth.js";
+import { requireBillingAccess } from "../middleware/billing.js";
 
 const router = Router();
-router.use(authMiddleware);
+router.use(authMiddleware, requireBillingAccess);
 
 // Get all menus with search functionality
 router.get("/menus", async (req: AuthRequest, res) => {
