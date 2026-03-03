@@ -160,12 +160,33 @@ interface EventFormData {
   budgetPercentage: number;
 }
 
+interface EventPricingSummary {
+  totalCost: number;
+  costPerGuest: number;
+  targetPrice: number;
+  targetPricePerGuest: number;
+  profitAmount: number;
+  profitPercentage: number;
+  costCoveragePercentage: number;
+  calculatedAt: string;
+  breakdown: Array<{
+    recipeId: string;
+    recipeName: string;
+    plannedServings: number;
+    baseCost: number;
+    adjustedCost: number;
+  }>;
+}
+
 export default function EventsPage() {
   const navigate = useNavigate();
   const [selectedEventType, setSelectedEventType] = useState<string>("");
   const [selectedPrepGuide, setSelectedPrepGuide] = useState<string>("buffet");
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [events, setEvents] = useState<Event[]>([]);
+  const [eventPricing, setEventPricing] = useState<Record<string, EventPricingSummary>>({});
+  const [selectedPricingEventId, setSelectedPricingEventId] = useState<string | null>(null);
+  const [recalculatingEventId, setRecalculatingEventId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [formData, setFormData] = useState<EventFormData>({
     name: "",
@@ -188,13 +209,72 @@ export default function EventsPage() {
   }, []);
 
   // Fetch events from API
+  const formatMoney = (value: number) =>
+    new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: "USD",
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(Number(value) || 0);
+
+  const fetchEventPricing = async (eventList: Event[]) => {
+    if (!eventList.length) {
+      setEventPricing({});
+      return;
+    }
+
+    const results = await Promise.all(
+      eventList.map(async (event) => {
+        try {
+          const response = await fetch(`/api/events/${event.id}/calculate`);
+          if (!response.ok) return null;
+          const data = await response.json();
+          return {
+            eventId: event.id,
+            summary: {
+              totalCost: Number(data.totalCost) || 0,
+              costPerGuest: Number(data.costPerGuest) || 0,
+              targetPrice: Number(data.targetPrice) || 0,
+              targetPricePerGuest: Number(data.targetPricePerGuest) || 0,
+              profitAmount: Number(data.profitAmount) || 0,
+              profitPercentage: Number(data.profitPercentage) || 0,
+              costCoveragePercentage: Number(data.costCoveragePercentage) || 0,
+              calculatedAt: new Date().toISOString(),
+              breakdown: Array.isArray(data.breakdown)
+                ? data.breakdown.map((item: any) => ({
+                    recipeId: String(item.recipeId || ""),
+                    recipeName: String(item.recipeName || "Recipe"),
+                    plannedServings: Number(item.plannedServings) || 0,
+                    baseCost: Number(item.baseCost) || 0,
+                    adjustedCost: Number(item.adjustedCost) || 0,
+                  }))
+                : [],
+            } as EventPricingSummary,
+          };
+        } catch {
+          return null;
+        }
+      })
+    );
+
+    const nextPricing: Record<string, EventPricingSummary> = {};
+    for (const entry of results) {
+      if (entry?.eventId && entry.summary) {
+        nextPricing[entry.eventId] = entry.summary;
+      }
+    }
+    setEventPricing(nextPricing);
+  };
+
   const fetchEvents = async () => {
     try {
       setLoading(true);
       const response = await fetch("/api/events");
       if (response.ok) {
         const data = await response.json();
-        setEvents(data.events || []);
+        const eventList = data.events || [];
+        setEvents(eventList);
+        await fetchEventPricing(eventList);
       } else {
         console.error("Failed to fetch events");
       }
@@ -202,6 +282,55 @@ export default function EventsPage() {
       console.error("Error fetching events:", error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const recalculateEventPricing = async (eventId: string) => {
+    try {
+      setRecalculatingEventId(eventId);
+      const response = await fetch(`/api/events/${eventId}/calculate`);
+      if (!response.ok) {
+        throw new Error("Failed to recalculate event pricing");
+      }
+      const data = await response.json();
+      const updatedSummary: EventPricingSummary = {
+        totalCost: Number(data.totalCost) || 0,
+        costPerGuest: Number(data.costPerGuest) || 0,
+        targetPrice: Number(data.targetPrice) || 0,
+        targetPricePerGuest: Number(data.targetPricePerGuest) || 0,
+        profitAmount: Number(data.profitAmount) || 0,
+        profitPercentage: Number(data.profitPercentage) || 0,
+        costCoveragePercentage: Number(data.costCoveragePercentage) || 0,
+        calculatedAt: new Date().toISOString(),
+        breakdown: Array.isArray(data.breakdown)
+          ? data.breakdown.map((item: any) => ({
+              recipeId: String(item.recipeId || ""),
+              recipeName: String(item.recipeName || "Recipe"),
+              plannedServings: Number(item.plannedServings) || 0,
+              baseCost: Number(item.baseCost) || 0,
+              adjustedCost: Number(item.adjustedCost) || 0,
+            }))
+          : [],
+      };
+
+      setEventPricing((prev) => ({
+        ...prev,
+        [eventId]: updatedSummary,
+      }));
+
+      toast({
+        title: "Pricing updated",
+        description: "Event pricing has been recalculated.",
+      });
+    } catch (error) {
+      console.error("Error recalculating pricing:", error);
+      toast({
+        title: "Recalculation failed",
+        description: "Unable to refresh event pricing right now.",
+        variant: "destructive",
+      });
+    } finally {
+      setRecalculatingEventId(null);
     }
   };
 
@@ -290,7 +419,9 @@ export default function EventsPage() {
       const refreshResponse = await fetch("/api/events");
       if (refreshResponse.ok) {
         const data = await refreshResponse.json();
-        setEvents(data.events || []);
+        const eventList = data.events || [];
+        setEvents(eventList);
+        await fetchEventPricing(eventList);
       }
     } catch (error) {
       console.error("Error creating event:", error);
@@ -349,7 +480,9 @@ export default function EventsPage() {
         const refreshResponse = await fetch("/api/events");
         if (refreshResponse.ok) {
           const data = await refreshResponse.json();
-          setEvents(data.events || []);
+          const eventList = data.events || [];
+          setEvents(eventList);
+          await fetchEventPricing(eventList);
         }
       } else {
         throw new Error("Failed to delete event");
@@ -621,7 +754,9 @@ export default function EventsPage() {
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {events.map((event) => (
+                {events.map((event) => {
+                  const pricing = eventPricing[event.id];
+                  return (
                   <Card
                     key={event.id}
                     className="hover:shadow-lg transition-shadow"
@@ -668,11 +803,40 @@ export default function EventsPage() {
                           </span>
                         </div>
                         <div className="flex justify-between">
-                          <span className="text-gray-600">Budget:</span>
+                          <span className="text-gray-600">Cost coverage:</span>
                           <span className="font-medium">
                             {event.budgetPercentage}%
                           </span>
                         </div>
+                        {pricing && (
+                          <>
+                            <div className="flex justify-between">
+                              <span className="text-gray-600">Total cost:</span>
+                              <span className="font-medium">
+                                {formatMoney(pricing.totalCost)}
+                              </span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-gray-600">Target price:</span>
+                              <span className="font-medium">
+                                {formatMoney(pricing.targetPrice)}
+                              </span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-gray-600">Price per guest:</span>
+                              <span className="font-medium">
+                                {formatMoney(pricing.targetPricePerGuest)}
+                              </span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-gray-600">Profit:</span>
+                              <span className="font-medium">
+                                {formatMoney(pricing.profitAmount)} (
+                                {pricing.profitPercentage.toFixed(1)}%)
+                              </span>
+                            </div>
+                          </>
+                        )}
                       </div>
                       <div className="flex space-x-2 mt-4">
                         <Button
@@ -692,9 +856,21 @@ export default function EventsPage() {
                           Delete
                         </Button>
                       </div>
+                      <div className="mt-2">
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          className="w-full"
+                          onClick={() => setSelectedPricingEventId(event.id)}
+                          disabled={!pricing}
+                        >
+                          View Pricing Breakdown
+                        </Button>
+                      </div>
                     </CardContent>
                   </Card>
-                ))}
+                  );
+                })}
               </div>
             )}
 
@@ -887,7 +1063,7 @@ export default function EventsPage() {
                 />
               </div>
               <div>
-                <Label htmlFor="budget">Budget Margin (%)</Label>
+                <Label htmlFor="budget">Cost Coverage (%)</Label>
                 <Input
                   id="budget"
                   type="number"
@@ -898,13 +1074,13 @@ export default function EventsPage() {
                       budgetPercentage: parseFloat(e.target.value) || 0,
                     })
                   }
-                  placeholder="Optional profit margin percentage"
+                  placeholder="How much of the final price is cost"
                   min="0"
                   max="100"
                   step="0.1"
                 />
                 <p className="text-xs text-muted-foreground mt-1">
-                  Optional: Add a profit margin percentage to the base cost
+                  Example: 20 means cost is 20% and target price keeps 80% margin.
                 </p>
               </div>
             </div>
@@ -925,6 +1101,128 @@ export default function EventsPage() {
               </Button>
             </div>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Pricing Breakdown Dialog */}
+      <Dialog
+        open={Boolean(selectedPricingEventId)}
+        onOpenChange={(open) => {
+          if (!open) setSelectedPricingEventId(null);
+        }}
+      >
+        <DialogContent className="max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>Event Pricing Breakdown</DialogTitle>
+            <DialogDescription>
+              {selectedPricingEventId
+                ? events.find((e) => e.id === selectedPricingEventId)?.name ||
+                  "Selected event"
+                : "Selected event"}
+            </DialogDescription>
+          </DialogHeader>
+          {selectedPricingEventId && eventPricing[selectedPricingEventId] ? (
+            <div className="space-y-4">
+              <div className="flex justify-end">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => recalculateEventPricing(selectedPricingEventId)}
+                  disabled={recalculatingEventId === selectedPricingEventId}
+                >
+                  {recalculatingEventId === selectedPricingEventId
+                    ? "Recalculating..."
+                    : "Recalculate"}
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground text-right -mt-2">
+                Last updated:{" "}
+                {new Date(
+                  eventPricing[selectedPricingEventId].calculatedAt
+                ).toLocaleString()}
+              </p>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-3 text-sm">
+                <div className="rounded-md border p-3">
+                  <p className="text-muted-foreground">Total Cost</p>
+                  <p className="font-semibold">
+                    {formatMoney(eventPricing[selectedPricingEventId].totalCost)}
+                  </p>
+                </div>
+                <div className="rounded-md border p-3">
+                  <p className="text-muted-foreground">Target Price</p>
+                  <p className="font-semibold">
+                    {formatMoney(eventPricing[selectedPricingEventId].targetPrice)}
+                  </p>
+                </div>
+                <div className="rounded-md border p-3">
+                  <p className="text-muted-foreground">Profit</p>
+                  <p className="font-semibold">
+                    {formatMoney(eventPricing[selectedPricingEventId].profitAmount)} (
+                    {eventPricing[selectedPricingEventId].profitPercentage.toFixed(1)}%)
+                  </p>
+                </div>
+                <div className="rounded-md border p-3">
+                  <p className="text-muted-foreground">Cost / Guest</p>
+                  <p className="font-semibold">
+                    {formatMoney(eventPricing[selectedPricingEventId].costPerGuest)}
+                  </p>
+                </div>
+                <div className="rounded-md border p-3">
+                  <p className="text-muted-foreground">Target / Guest</p>
+                  <p className="font-semibold">
+                    {formatMoney(
+                      eventPricing[selectedPricingEventId].targetPricePerGuest
+                    )}
+                  </p>
+                </div>
+                <div className="rounded-md border p-3">
+                  <p className="text-muted-foreground">Cost Coverage</p>
+                  <p className="font-semibold">
+                    {eventPricing[selectedPricingEventId].costCoveragePercentage.toFixed(
+                      1
+                    )}
+                    %
+                  </p>
+                </div>
+              </div>
+
+              <div className="rounded-md border">
+                <div className="grid grid-cols-12 gap-2 px-3 py-2 text-xs font-semibold text-muted-foreground border-b">
+                  <div className="col-span-4">Recipe</div>
+                  <div className="col-span-2 text-right">Servings</div>
+                  <div className="col-span-3 text-right">Base Cost</div>
+                  <div className="col-span-3 text-right">Adjusted Cost</div>
+                </div>
+                <div className="max-h-72 overflow-auto">
+                  {eventPricing[selectedPricingEventId].breakdown.length === 0 ? (
+                    <p className="px-3 py-4 text-sm text-muted-foreground">
+                      No recipe pricing breakdown available for this event yet.
+                    </p>
+                  ) : (
+                    eventPricing[selectedPricingEventId].breakdown.map((item) => (
+                      <div
+                        key={`${item.recipeId}-${item.recipeName}`}
+                        className="grid grid-cols-12 gap-2 px-3 py-2 text-sm border-b last:border-b-0"
+                      >
+                        <div className="col-span-4">{item.recipeName}</div>
+                        <div className="col-span-2 text-right">{item.plannedServings}</div>
+                        <div className="col-span-3 text-right">
+                          {formatMoney(item.baseCost)}
+                        </div>
+                        <div className="col-span-3 text-right font-medium">
+                          {formatMoney(item.adjustedCost)}
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              Pricing data is not available for this event yet.
+            </p>
+          )}
         </DialogContent>
       </Dialog>
     </div>

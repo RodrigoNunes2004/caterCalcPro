@@ -65,6 +65,14 @@ function generateUUID(): string {
   return randomUUID();
 }
 
+function normalizeName(value: string): string {
+  return String(value || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 function validateEventData(eventData: any): any {
   // Ensure all required fields are present and properly formatted
   const validatedData = {
@@ -1448,12 +1456,104 @@ export const storage = {
     };
   },
 
-  async calculateEventCosts(eventId: string): Promise<any> {
-    // Placeholder implementation
+  async calculateEventCosts(eventId: string, organizationId: string): Promise<any> {
+    const event = await this.getEvent(eventId, organizationId);
+    if (!event) {
+      return {
+        totalCost: 0,
+        costPerGuest: 0,
+        targetPrice: 0,
+        targetPricePerGuest: 0,
+        profitAmount: 0,
+        profitPercentage: 0,
+        costCoveragePercentage: 0,
+        breakdown: [],
+      };
+    }
+
+    const inventoryRows = await this.getInventoryItems(organizationId);
+    const inventoryByName = new Map<string, any>();
+    for (const item of inventoryRows || []) {
+      const key = normalizeName(item.name);
+      if (key) inventoryByName.set(key, item);
+    }
+
+    const guestCount = Number(event.guestCount) || 0;
+    const budgetPercentage = Number(event.budgetPercentage) || 0;
+    const costCoveragePercentage = Math.max(0, Math.min(100, budgetPercentage));
+    const coverageRatio = costCoveragePercentage > 0 ? costCoveragePercentage / 100 : 0;
+
+    const breakdown: Array<{
+      recipeId: string;
+      recipeName: string;
+      plannedServings: number;
+      baseCost: number;
+      adjustedCost: number;
+    }> = [];
+
+    let totalCost = 0;
+    for (const er of event.recipes || []) {
+      const recipeId = String(er.recipeId || er.recipe?.id || "");
+      if (!recipeId) continue;
+      const plannedServings = Number(er.plannedServings) || guestCount || 1;
+      const calc = await this.calculateRecipeCosts(recipeId, {
+        organizationId,
+        targetServings: plannedServings,
+      });
+      if (!calc) continue;
+
+      const baseCost = Number(calc.totalCost) || 0;
+      let adjustedCost = 0;
+
+      for (const ingredient of calc.ingredients || []) {
+        const ingredientName = String(ingredient.name || "");
+        const quantity = Number(ingredient.scaledQuantity) || 0;
+        const fallbackUnitCost = Number(ingredient.costPerUnit) || 0;
+        const inv = inventoryByName.get(normalizeName(ingredientName));
+        const invUnitCost = Number(inv?.pricePerUnit ?? inv?.price_per_unit ?? 0) || 0;
+        const unitCost = invUnitCost > 0 ? invUnitCost : fallbackUnitCost;
+        adjustedCost += quantity * unitCost;
+      }
+
+      // Fallback to recipe base if we don't have useful ingredient details.
+      if (!Number.isFinite(adjustedCost) || adjustedCost <= 0) {
+        adjustedCost = baseCost;
+      }
+
+      totalCost += adjustedCost;
+      breakdown.push({
+        recipeId,
+        recipeName: String(er.recipe?.name || "Recipe"),
+        plannedServings,
+        baseCost: Math.round(baseCost * 100) / 100,
+        adjustedCost: Math.round(adjustedCost * 100) / 100,
+      });
+    }
+
+    totalCost = Math.round(totalCost * 100) / 100;
+    const costPerGuest = guestCount > 0 ? Math.round((totalCost / guestCount) * 100) / 100 : 0;
+    const targetPrice =
+      coverageRatio > 0 ? Math.round((totalCost / coverageRatio) * 100) / 100 : totalCost;
+    const targetPricePerGuest =
+      guestCount > 0 ? Math.round((targetPrice / guestCount) * 100) / 100 : 0;
+    const profitAmount = Math.round((targetPrice - totalCost) * 100) / 100;
+    const profitPercentage =
+      targetPrice > 0
+        ? Math.round(((profitAmount / targetPrice) * 100) * 100) / 100
+        : 0;
+
     return {
-      totalCost: 0,
-      costPerGuest: 0,
-      breakdown: [],
+      eventId: String(event.id),
+      eventName: String(event.name),
+      guestCount,
+      totalCost,
+      costPerGuest,
+      targetPrice,
+      targetPricePerGuest,
+      profitAmount,
+      profitPercentage,
+      costCoveragePercentage,
+      breakdown,
     };
   },
 

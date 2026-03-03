@@ -196,9 +196,10 @@ router.put("/events/:eventId/recipes/:recipeId", async (req: AuthRequest, res) =
 router.get("/events/:id/calculate", async (req: AuthRequest, res) => {
   try {
     const { id } = req.params;
+    const orgId = req.auth!.organizationId;
     console.log(`Calculating total costs for event ${id}`);
 
-    const calculation = await storage.calculateEventCosts(id);
+    const calculation = await storage.calculateEventCosts(id, orgId);
 
     console.log("Event calculation result:", calculation);
     res.json(calculation);
