@@ -25,6 +25,13 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { useAuth } from "@/contexts/AuthContext";
 import { usePlanAccess } from "@/hooks/usePlanAccess";
 import PlanBadge from "@/components/PlanBadge";
@@ -124,12 +131,13 @@ export default function LandingPage() {
   const { user } = useAuth();
   const { planTier, isLoading: planLoading } = usePlanAccess();
   const [stripeLoading, setStripeLoading] = useState(false);
+  const [showPlanOptions, setShowPlanOptions] = useState(false);
 
   const handleGoToApp = () => {
     navigate(user ? "/" : "/login");
   };
 
-  const handleStartStripeCheckout = async () => {
+  const handleStartStripeCheckout = async (selectedPlanTier: "starter" | "pro" | "ai") => {
     try {
       setStripeLoading(true);
       const baseUrl = window.location.origin;
@@ -139,8 +147,8 @@ export default function LandingPage() {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          planTier: "starter",
-          successUrl: `${baseUrl}/register?billing=success`,
+          planTier: selectedPlanTier,
+          successUrl: `${baseUrl}/${user ? "billing" : "register"}?billing=success`,
           cancelUrl: `${baseUrl}/?billing=cancelled`,
         }),
       });
@@ -160,6 +168,7 @@ export default function LandingPage() {
       alert("Stripe checkout is not configured yet. Please use Start Free Trial for now.");
     } finally {
       setStripeLoading(false);
+      setShowPlanOptions(false);
     }
   };
 
@@ -634,7 +643,13 @@ export default function LandingPage() {
             <Button
               variant="outline"
               className="w-full mt-3 text-lg py-3"
-              onClick={handleStartStripeCheckout}
+              onClick={() => {
+                if (user) {
+                  navigate("/billing");
+                  return;
+                }
+                setShowPlanOptions(true);
+              }}
               disabled={stripeLoading}
             >
               {stripeLoading ? "Redirecting..." : "See Subscription Options"}
@@ -642,6 +657,40 @@ export default function LandingPage() {
           </div>
         </div>
       </section>
+
+      <Dialog open={showPlanOptions} onOpenChange={setShowPlanOptions}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Choose a subscription plan</DialogTitle>
+            <DialogDescription>
+              Select a plan to continue to Stripe checkout.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-3">
+            <Button
+              variant="outline"
+              onClick={() => handleStartStripeCheckout("starter")}
+              disabled={stripeLoading}
+            >
+              Starter - $39.00 NZD/month
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => handleStartStripeCheckout("pro")}
+              disabled={stripeLoading}
+            >
+              Pro - $79.00 NZD/month
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => handleStartStripeCheckout("ai")}
+              disabled={stripeLoading}
+            >
+              AI Plan - $99.00 NZD/month
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* CTA Section */}
       <section className="py-20 bg-gray-900 text-white">

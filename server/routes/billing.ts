@@ -9,10 +9,9 @@ const router = Router();
 type PlanTier = "starter" | "pro" | "ai";
 
 function getPriceMap() {
+  const legacy = String(process.env.STRIPE_PRICE_ID || "").trim();
   const starter = String(process.env.STRIPE_PRICE_ID_STARTER || "").trim();
-  const pro = String(
-    process.env.STRIPE_PRICE_ID_PRO || process.env.STRIPE_PRICE_ID || ""
-  ).trim();
+  const pro = String(process.env.STRIPE_PRICE_ID_PRO || legacy).trim();
   const ai = String(process.env.STRIPE_PRICE_ID_AI || "").trim();
   return { starter, pro, ai };
 }
@@ -53,11 +52,9 @@ function resolveCheckoutTarget(body: any): {
       ? prices.ai
       : requestedTier === "pro"
         ? prices.pro
-        : prices.starter || prices.pro;
+        : prices.starter;
 
-  if (tierPrice && tierPrice === prices.ai) return { priceId: tierPrice, planTier: "ai" };
-  if (tierPrice && tierPrice === prices.pro) return { priceId: tierPrice, planTier: "pro" };
-  return { priceId: tierPrice, planTier: "starter" };
+  return { priceId: tierPrice, planTier: requestedTier };
 }
 
 function inferPlanTierFromStripePriceId(priceId: string | null): PlanTier {
@@ -116,9 +113,11 @@ function getAuthOrganizationId(req: Request): string | null {
 router.get("/billing/config", (_req, res) => {
   const prices = getPriceMap();
   res.json({
-    enabled: Boolean(process.env.STRIPE_SECRET_KEY && (prices.pro || prices.starter)),
+    enabled: Boolean(
+      process.env.STRIPE_SECRET_KEY && (prices.starter || prices.pro || prices.ai)
+    ),
     publishableKey: process.env.STRIPE_PUBLISHABLE_KEY || null,
-    defaultPriceId: prices.pro || prices.starter || null,
+    defaultPriceId: prices.starter || prices.pro || prices.ai || null,
     prices: {
       starter: prices.starter || null,
       pro: prices.pro || null,
