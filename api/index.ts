@@ -55,13 +55,13 @@ app.use("/api", async (req, res, next) => {
       const router = express.Router();
       router.use(healthRoutes);
       router.use(authRoutes);
+      router.use(billingRoutes);
       router.use(recipeRoutes);
       router.use(ingredientsRoutes);
       router.use(eventsRoutes);
       router.use(menuRoutes);
       router.use(prepListRoutes);
       router.use(inventoryRoutes);
-      router.use(billingRoutes);
       apiRouter = router;
     } catch (err) {
       routesLoadError = err instanceof Error ? err : new Error(String(err));

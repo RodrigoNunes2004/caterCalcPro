@@ -15,13 +15,13 @@ export async function registerRoutes(app: Express) {
 
   app.use("/api", healthRoutes);
   app.use("/api", authRoutes);
+  app.use("/api", billingRoutes);
   app.use("/api", recipeRoutes);
   app.use("/api", ingredientsRoutes);
   app.use("/api", eventsRoutes);
   app.use("/api", menuRoutes);
   app.use("/api", prepListRoutes);
   app.use("/api", inventoryRoutes);
-  app.use("/api", billingRoutes);
 
   return httpServer;
 }
