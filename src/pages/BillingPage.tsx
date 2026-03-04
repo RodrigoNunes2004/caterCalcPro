@@ -98,9 +98,20 @@ export default function BillingPage() {
     })();
   }, []);
 
+  const isInAppBrowser = () => {
+    const ua = navigator.userAgent || "";
+    return (
+      /\[LinkedInApp\]/i.test(ua) ||
+      /FBAN|FBAV/i.test(ua) ||
+      /Instagram/i.test(ua) ||
+      /Twitter/i.test(ua)
+    );
+  };
+
   const handleCheckout = async (planTier: PlanTier) => {
     try {
       setCheckoutLoading(true);
+      setError("");
       const baseUrl = window.location.origin;
       const response = await fetch("/api/billing/create-checkout-session", {
         method: "POST",
@@ -112,15 +123,23 @@ export default function BillingPage() {
           cancelUrl: `${baseUrl}/billing?billing=cancelled`,
         }),
       });
+      const data = await response.json().catch(() => ({}));
       if (!response.ok) {
-        throw new Error("Checkout session failed");
+        const serverMsg = data?.message || data?.error || "Unknown error";
+        if (isInAppBrowser()) {
+          setError(
+            "Checkout doesn't work inside LinkedIn or other in-app browsers. Open this page in Chrome or Safari (⋮ menu → Open in Browser)."
+          );
+        } else {
+          setError(`Checkout failed: ${serverMsg}`);
+        }
+        return;
       }
-      const data = await response.json();
       if (data?.url) {
         window.location.assign(data.url);
         return;
       }
-      throw new Error("Missing checkout url");
+      setError("Missing checkout URL");
     } catch (_err) {
       setError("Stripe checkout is not configured yet. Please contact support.");
     } finally {

@@ -137,6 +137,16 @@ export default function LandingPage() {
     navigate(user ? "/" : "/login");
   };
 
+  const isInAppBrowser = () => {
+    const ua = navigator.userAgent || "";
+    return (
+      /\[LinkedInApp\]/i.test(ua) ||
+      /FBAN|FBAV/i.test(ua) ||
+      /Instagram/i.test(ua) ||
+      /Twitter/i.test(ua)
+    );
+  };
+
   const handleStartStripeCheckout = async (selectedPlanTier: "starter" | "pro" | "ai") => {
     try {
       setStripeLoading(true);
@@ -153,11 +163,23 @@ export default function LandingPage() {
         }),
       });
 
+      const data = await response.json().catch(() => ({}));
+
       if (!response.ok) {
-        throw new Error("Unable to start Stripe checkout");
+        const serverMsg = data?.message || data?.error || "Unknown error";
+        console.error("Stripe checkout error:", response.status, serverMsg);
+
+        if (isInAppBrowser()) {
+          alert(
+            "Checkout doesn't work well inside LinkedIn or other in-app browsers. " +
+              "Please open this page in Chrome or Safari (tap the ⋮ or Share menu → 'Open in Browser')."
+          );
+        } else {
+          alert(`Checkout failed: ${serverMsg}`);
+        }
+        return;
       }
 
-      const data = await response.json();
       if (data?.url) {
         window.location.href = data.url;
         return;
