@@ -25,6 +25,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import Navigation from "@/components/Navigator";
 import { useRecipes, useDeleteRecipe } from "@/hooks/useRecipes";
+import { usePlanAccess } from "@/hooks/usePlanAccess";
 import { useQuery } from "@tanstack/react-query";
 import { DEFAULT_GUEST_COUNT } from "@/lib/constants";
 
@@ -32,6 +33,7 @@ export default function HomePage() {
   const navigate = useNavigate();
   const [guestCount, setGuestCount] = useState<number>(DEFAULT_GUEST_COUNT);
   const [hiddenRecipes, setHiddenRecipes] = useState<Set<string>>(new Set());
+  const { canAccess } = usePlanAccess();
 
   // Fetch recent recipes (limit to 3 most recent)
   const { data: recipesData, isLoading: recipesLoading } = useRecipes({
@@ -303,6 +305,76 @@ export default function HomePage() {
                 <Badge variant="secondary">Low Stock</Badge>
                 <Badge variant="secondary">Pricing</Badge>
               </div>
+            </CardContent>
+          </Card>
+
+          <Card className="border-amber-200 hover:shadow-lg transition-shadow">
+            <CardHeader className="pb-3">
+              <div className="flex items-center space-x-2">
+                <Calculator className="h-5 w-5 text-amber-600" />
+                <CardTitle className="text-lg">Pro Analytics</CardTitle>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm text-muted-foreground mb-3">
+                Access trend dashboards, snapshots, and deeper margin visibility.
+              </p>
+              {canAccess("pro") ? (
+                <Button
+                  className="w-full mt-3"
+                  variant="outline"
+                  onClick={() => navigate("/analytics")}
+                >
+                  Open Analytics
+                </Button>
+              ) : (
+                <Button
+                  className="w-full mt-3"
+                  variant="outline"
+                  onClick={() =>
+                    navigate(
+                      `/billing?from=${encodeURIComponent("/")}&requiredPlan=pro`
+                    )
+                  }
+                >
+                  Upgrade to Pro
+                </Button>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card className="border-purple-200 hover:shadow-lg transition-shadow">
+            <CardHeader className="pb-3">
+              <div className="flex items-center space-x-2">
+                <ChefHat className="h-5 w-5 text-purple-600" />
+                <CardTitle className="text-lg">AI Recipe Studio</CardTitle>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm text-muted-foreground mb-3">
+                Generate AI-assisted recipe drafts and estimate costs quickly.
+              </p>
+              {canAccess("ai") ? (
+                <Button
+                  className="w-full mt-3"
+                  variant="outline"
+                  onClick={() => navigate("/ai-studio")}
+                >
+                  Open AI Studio
+                </Button>
+              ) : (
+                <Button
+                  className="w-full mt-3"
+                  variant="outline"
+                  onClick={() =>
+                    navigate(
+                      `/billing?from=${encodeURIComponent("/")}&requiredPlan=ai`
+                    )
+                  }
+                >
+                  Upgrade to AI Plan
+                </Button>
+              )}
             </CardContent>
           </Card>
         </div>

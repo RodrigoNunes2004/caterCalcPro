@@ -25,16 +25,26 @@ window.fetch = function (input: RequestInfo | URL, init?: RequestInit) {
 
         if (
           shouldHandleBilling &&
-          response.status === 402 &&
+          (response.status === 402 || response.status === 403) &&
           !billingRedirectInProgress &&
           window.location.pathname !== "/billing"
         ) {
           try {
             const data = await response.clone().json().catch(() => null);
-            if (data?.code === "SUBSCRIPTION_REQUIRED") {
+            if (
+              data?.code === "SUBSCRIPTION_REQUIRED" ||
+              data?.code === "PLAN_UPGRADE_REQUIRED"
+            ) {
               billingRedirectInProgress = true;
               const from = `${window.location.pathname}${window.location.search}`;
-              window.location.assign(`/billing?from=${encodeURIComponent(from)}`);
+              const requiredPlan =
+                data?.billing?.requiredPlanTier &&
+                typeof data.billing.requiredPlanTier === "string"
+                  ? `&requiredPlan=${encodeURIComponent(data.billing.requiredPlanTier)}`
+                  : "";
+              window.location.assign(
+                `/billing?from=${encodeURIComponent(from)}${requiredPlan}`
+              );
             }
           } catch {
             // ignore - keep original response flow

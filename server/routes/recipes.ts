@@ -14,6 +14,7 @@ import {
   type RecipeWithIngredients,
 } from "../../shared/schema.js";
 import { eq, desc } from "drizzle-orm";
+import { calculateRecipeCost } from "../services/pricingEngine.js";
 
 const router = Router();
 router.use(authMiddleware, requireBillingAccess);
@@ -269,11 +270,14 @@ router.post("/recipes/:id/calculate", async (req: AuthRequest, res) => {
     const orgId = req.auth!.organizationId;
     const { guestCount, targetServings } = req.body;
 
-    const calculation = await storage.calculateRecipeCosts(id, {
-      organizationId: orgId,
-      guestCount: guestCount || null,
-      targetServings: targetServings || null,
-    });
+    const resolvedServings =
+      Number(targetServings || 0) > 0
+        ? Number(targetServings)
+        : Number(guestCount || 0) > 0
+          ? Number(guestCount)
+          : null;
+
+    const calculation = await calculateRecipeCost(id, resolvedServings, orgId);
 
     console.log("Recipe calculation result:", calculation);
     res.json(calculation);

@@ -5,10 +5,13 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/contexts/AuthContext";
+import { normalizePlanTier, hasPlanAccess, type PlanTier } from "@/lib/planTier";
+import PlanBadge from "@/components/PlanBadge";
 
 type BillingStatus = {
   organizationId: string;
   plan: string;
+  planTier?: string;
   subscriptionStatus: string;
   trialEndsAt: string | null;
   stripeCustomerId: string | null;
@@ -16,6 +19,16 @@ type BillingStatus = {
   stripePriceId: string | null;
   billingEmail: string | null;
   subscriptionCurrentPeriodEnd: string | null;
+};
+
+type BillingConfig = {
+  enabled: boolean;
+  defaultPriceId: string | null;
+  prices?: {
+    starter?: string | null;
+    pro?: string | null;
+    ai?: string | null;
+  };
 };
 
 function formatDate(value: string | null): string {
@@ -30,6 +43,7 @@ export default function BillingPage() {
   const location = useLocation();
   const { user } = useAuth();
   const [status, setStatus] = useState<BillingStatus | null>(null);
+  const [config, setConfig] = useState<BillingConfig | null>(null);
   const [loading, setLoading] = useState(true);
   const [checkoutLoading, setCheckoutLoading] = useState(false);
   const [error, setError] = useState<string>("");
@@ -38,6 +52,17 @@ export default function BillingPage() {
     const params = new URLSearchParams(location.search);
     return params.get("from") || "/";
   }, [location.search]);
+
+  const requiredPlan = useMemo<PlanTier | null>(() => {
+    const params = new URLSearchParams(location.search);
+    const raw = params.get("requiredPlan");
+    if (!raw) return null;
+    return normalizePlanTier(raw);
+  }, [location.search]);
+
+  const currentPlanTier = useMemo<PlanTier>(() => {
+    return normalizePlanTier(status?.planTier, status?.plan);
+  }, [status?.planTier, status?.plan]);
 
   const loadStatus = async () => {
     try {
@@ -60,7 +85,20 @@ export default function BillingPage() {
     loadStatus();
   }, []);
 
-  const handleCheckout = async () => {
+  useEffect(() => {
+    (async () => {
+      try {
+        const response = await fetch("/api/billing/config");
+        if (!response.ok) return;
+        const data = await response.json();
+        setConfig(data);
+      } catch {
+        // Optional; checkout call still validates config server-side.
+      }
+    })();
+  }, []);
+
+  const handleCheckout = async (planTier: PlanTier) => {
     try {
       setCheckoutLoading(true);
       const baseUrl = window.location.origin;
@@ -69,6 +107,7 @@ export default function BillingPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           email: user?.email || undefined,
+          planTier,
           successUrl: `${baseUrl}/billing?billing=success`,
           cancelUrl: `${baseUrl}/billing?billing=cancelled`,
         }),
@@ -108,14 +147,17 @@ export default function BillingPage() {
 
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              {isLikelyActive ? (
-                <CheckCircle2 className="h-5 w-5 text-green-600" />
-              ) : (
-                <AlertTriangle className="h-5 w-5 text-amber-600" />
-              )}
-              Billing & Subscription
-            </CardTitle>
+            <div className="flex items-center justify-between gap-2">
+              <CardTitle className="flex items-center gap-2">
+                {isLikelyActive ? (
+                  <CheckCircle2 className="h-5 w-5 text-green-600" />
+                ) : (
+                  <AlertTriangle className="h-5 w-5 text-amber-600" />
+                )}
+                Billing & Subscription
+              </CardTitle>
+              <PlanBadge planTier={currentPlanTier} loading={loading} />
+            </div>
             <CardDescription>
               Manage your subscription to keep access to recipes, menus, events, and prep workflows.
             </CardDescription>
@@ -129,6 +171,10 @@ export default function BillingPage() {
                   <div className="rounded-md border p-3">
                     <p className="text-muted-foreground">Plan</p>
                     <p className="font-semibold">{status?.plan || "trial"}</p>
+                  </div>
+                  <div className="rounded-md border p-3">
+                    <p className="text-muted-foreground">Plan Tier</p>
+                    <p className="font-semibold">{currentPlanTier}</p>
                   </div>
                   <div className="rounded-md border p-3">
                     <p className="text-muted-foreground">Subscription Status</p>
@@ -153,6 +199,12 @@ export default function BillingPage() {
                     Your subscription is not active. Subscribe to continue using protected features.
                   </div>
                 )}
+
+                {requiredPlan && !hasPlanAccess(currentPlanTier, requiredPlan) && (
+                  <div className="rounded-md border border-blue-300 bg-blue-50 p-3 text-sm text-blue-900">
+                    This area requires <strong>{requiredPlan}</strong> plan access or higher.
+                  </div>
+                )}
               </>
             )}
 
@@ -164,12 +216,28 @@ export default function BillingPage() {
 
             <div className="flex flex-col sm:flex-row gap-3">
               <Button
-                onClick={handleCheckout}
+                onClick={() => handleCheckout("starter")}
                 className="bg-orange-600 hover:bg-orange-700"
-                disabled={checkoutLoading}
+                disabled={checkoutLoading || !config?.prices?.starter}
               >
                 <CreditCard className="h-4 w-4 mr-2" />
-                {checkoutLoading ? "Redirecting..." : "Subscribe with Stripe"}
+                {checkoutLoading ? "Redirecting..." : "Choose Starter"}
+              </Button>
+              <Button
+                onClick={() => handleCheckout("pro")}
+                variant="outline"
+                disabled={checkoutLoading || !config?.prices?.pro}
+              >
+                <CreditCard className="h-4 w-4 mr-2" />
+                {checkoutLoading ? "Redirecting..." : "Choose Pro"}
+              </Button>
+              <Button
+                onClick={() => handleCheckout("ai")}
+                variant="outline"
+                disabled={checkoutLoading || !config?.prices?.ai}
+              >
+                <CreditCard className="h-4 w-4 mr-2" />
+                {checkoutLoading ? "Redirecting..." : "Choose AI"}
               </Button>
               <Button variant="outline" onClick={() => navigate("/")}>
                 Go to Home

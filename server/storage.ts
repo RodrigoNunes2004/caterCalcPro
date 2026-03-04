@@ -413,6 +413,49 @@ async function ensureOrganizationBillingColumns() {
   await db.execute(sql`
     ALTER TABLE "organizations" ADD COLUMN IF NOT EXISTS "subscription_current_period_end" timestamp;
   `);
+  await db.execute(sql`
+    ALTER TABLE "organizations" ADD COLUMN IF NOT EXISTS "plan_tier" varchar(20) DEFAULT 'starter';
+  `);
+  await db.execute(sql`
+    UPDATE "organizations"
+    SET "plan_tier" = COALESCE("plan_tier", CASE WHEN "plan" = 'pro' THEN 'pro' ELSE 'starter' END);
+  `);
+}
+
+// Non-breaking schema extensions for analytics + AI-compatible recipe metadata
+async function ensureAdvancedFeatureTables() {
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS "event_snapshots" (
+      "id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+      "organization_id" uuid NOT NULL REFERENCES "organizations"("id") ON DELETE cascade,
+      "event_id" uuid NOT NULL REFERENCES "events"("id") ON DELETE cascade,
+      "total_cost" numeric(12, 2) NOT NULL DEFAULT 0,
+      "target_price" numeric(12, 2) NOT NULL DEFAULT 0,
+      "profit" numeric(12, 2) NOT NULL DEFAULT 0,
+      "profit_margin" numeric(7, 2) NOT NULL DEFAULT 0,
+      "guest_count" integer NOT NULL DEFAULT 0,
+      "created_at" timestamp DEFAULT now() NOT NULL
+    );
+  `);
+
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS "inventory_transactions" (
+      "id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+      "organization_id" uuid NOT NULL REFERENCES "organizations"("id") ON DELETE cascade,
+      "inventory_id" uuid NOT NULL REFERENCES "inventory"("id") ON DELETE cascade,
+      "quantity_change" numeric(12, 4) NOT NULL,
+      "reason" varchar(40) NOT NULL,
+      "reference_id" uuid,
+      "created_at" timestamp DEFAULT now() NOT NULL
+    );
+  `);
+
+  await db.execute(sql`
+    ALTER TABLE "recipes" ADD COLUMN IF NOT EXISTS "is_ai_generated" boolean DEFAULT false;
+  `);
+  await db.execute(sql`
+    ALTER TABLE "recipes" ADD COLUMN IF NOT EXISTS "ai_prompt" text;
+  `);
 }
 
 // Run schema sync then sample data
@@ -422,6 +465,7 @@ export async function initStorage(): Promise<void> {
   await ensureInventoryTable();
   await ensurePrepWorkflowTables();
   await ensureOrganizationBillingColumns();
+  await ensureAdvancedFeatureTables();
   await ensureOrganizationIdColumns();
   await safeInitializeSampleData();
 }
@@ -1633,6 +1677,7 @@ export const storage = {
     organizationId: string,
     data: {
       plan?: string;
+      planTier?: string;
       subscriptionStatus?: string;
       stripeCustomerId?: string | null;
       stripeSubscriptionId?: string | null;
@@ -1656,6 +1701,7 @@ export const storage = {
     stripeCustomerId: string,
     data: {
       plan?: string;
+      planTier?: string;
       subscriptionStatus?: string;
       stripeSubscriptionId?: string | null;
       stripePriceId?: string | null;

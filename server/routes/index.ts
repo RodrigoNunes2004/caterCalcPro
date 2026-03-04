@@ -9,6 +9,9 @@ import menuRoutes from "./menus.js";
 import prepListRoutes from "./prepLists.js";
 import inventoryRoutes from "./inventory.js";
 import billingRoutes from "./billing.js";
+import analyticsRoutes from "./analytics.js";
+import aiRoutes from "./ai.js";
+import pricingEngineRoutes from "./pricingEngine.js";
 
 export async function registerRoutes(app: Express) {
   const httpServer = createServer(app);
@@ -22,6 +25,9 @@ export async function registerRoutes(app: Express) {
   app.use("/api", menuRoutes);
   app.use("/api", prepListRoutes);
   app.use("/api", inventoryRoutes);
+  app.use("/api", pricingEngineRoutes);
+  app.use("/api", analyticsRoutes);
+  app.use("/api", aiRoutes);
 
   return httpServer;
 }

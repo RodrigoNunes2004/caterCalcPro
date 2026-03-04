@@ -10,6 +10,7 @@ import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
 import { ThemeProvider } from "next-themes";
 import { AuthProvider, useAuth } from "./contexts/AuthContext";
 import { ProtectedRoute } from "./components/ProtectedRoute";
+import { RequirePlan } from "./components/RequirePlan";
 import HomePage from "./pages/HomePage";
 import RecipesPage from "./pages/RecipesPage";
 import MenuPage from "./pages/MenuPage";
@@ -22,6 +23,8 @@ import LandingPage from "./pages/LandingPage";
 import LoginPage from "./pages/LoginPage";
 import RegisterPage from "./pages/RegisterPage";
 import BillingPage from "./pages/BillingPage";
+import AnalyticsPage from "./pages/AnalyticsPage";
+import AIStudioPage from "./pages/AIStudioPage";
 import NotFound from "./pages/NotFound";
 import "./index.css";
 
@@ -67,6 +70,26 @@ function App() {
                 <Route path="/landing" element={<LandingPage />} />
                 <Route path="/login" element={<LoginPage />} />
                 <Route path="/register" element={<RegisterPage />} />
+                <Route
+                  path="/analytics"
+                  element={
+                    <ProtectedRoute>
+                      <RequirePlan requiredPlan="pro">
+                        <AnalyticsPage />
+                      </RequirePlan>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/ai-studio"
+                  element={
+                    <ProtectedRoute>
+                      <RequirePlan requiredPlan="ai">
+                        <AIStudioPage />
+                      </RequirePlan>
+                    </ProtectedRoute>
+                  }
+                />
                 <Route
                   path="/billing"
                   element={

@@ -2,9 +2,31 @@ import { Router } from "express";
 import { storage } from "../storage.js";
 import { authMiddleware, type AuthRequest } from "../middleware/auth.js";
 import { requireBillingAccess } from "../middleware/billing.js";
+import { calculateRecipeCost } from "../services/pricingEngine.js";
 
 const router = Router();
 router.use(authMiddleware, requireBillingAccess);
+
+async function computeMenuTotals(recipeIds: string[], organizationId: string) {
+  let totalCost = 0;
+  let avgPrepTime = 0;
+  let countedRecipes = 0;
+
+  for (const recipeId of recipeIds) {
+    const recipe = await storage.getRecipe(recipeId, organizationId);
+    if (!recipe) continue;
+    countedRecipes += 1;
+    avgPrepTime += Number(recipe.prepTime || 0) + Number(recipe.cookTime || 0);
+
+    const cost = await calculateRecipeCost(recipeId, null, organizationId);
+    totalCost += Number(cost?.totalCost || 0);
+  }
+
+  return {
+    totalCost: Math.round(totalCost * 100) / 100,
+    avgPrepTime: countedRecipes > 0 ? Math.round(avgPrepTime / countedRecipes) : 0,
+  };
+}
 
 // Get all menus with search functionality
 router.get("/menus", async (req: AuthRequest, res) => {
@@ -45,41 +67,9 @@ router.post("/menus", async (req: AuthRequest, res) => {
 
     if (recipeIds && recipeIds.length > 0) {
       try {
-        const recipePromises = recipeIds.map(async (recipeId: string) => {
-          try {
-            return await storage.getRecipe(recipeId, orgId);
-          } catch (error) {
-            console.error(`Error fetching recipe ${recipeId}:`, error);
-            return null;
-          }
-        });
-
-        const recipes = await Promise.all(recipePromises);
-        const validRecipes = recipes.filter((recipe) => recipe !== null);
-
-        // Calculate totals from actual recipe data
-        if (validRecipes.length > 0) {
-          totalCost = validRecipes.reduce((sum, recipe) => {
-            const recipeCost =
-              recipe.ingredients?.reduce(
-                (ingredientSum: number, recipeIngredient: any) => {
-                  const quantity = parseFloat(recipeIngredient.quantity);
-                  const costPerUnit = parseFloat(
-                    recipeIngredient.ingredient.costPerUnit
-                  );
-                  return ingredientSum + quantity * costPerUnit;
-                },
-                0
-              ) || 0;
-            return sum + recipeCost;
-          }, 0);
-
-          avgPrepTime = Math.round(
-            validRecipes.reduce((sum, recipe) => {
-              return sum + (recipe.prepTime || 0) + (recipe.cookTime || 0);
-            }, 0) / validRecipes.length
-          );
-        }
+        const totals = await computeMenuTotals(recipeIds, orgId);
+        totalCost = totals.totalCost;
+        avgPrepTime = totals.avgPrepTime;
       } catch (error) {
         console.error("Error calculating menu totals:", error);
       }
@@ -131,48 +121,14 @@ router.put("/menus/:id", async (req: AuthRequest, res) => {
       return res.status(404).json({ error: "Menu not found" });
     }
 
-    // Calculate totalCost and avgPrepTime from recipes
     let totalCost = 0;
     let avgPrepTime = 0;
 
     if (recipeIds && recipeIds.length > 0) {
       try {
-        // Fetch recipe details to calculate totals
-        const recipePromises = recipeIds.map(async (recipeId: string) => {
-          try {
-            return await storage.getRecipe(recipeId, orgId);
-          } catch (error) {
-            console.error(`Error fetching recipe ${recipeId}:`, error);
-            return null;
-          }
-        });
-
-        const recipes = await Promise.all(recipePromises);
-        const validRecipes = recipes.filter((recipe) => recipe !== null);
-
-        // Calculate totals from actual recipe data
-        if (validRecipes.length > 0) {
-          totalCost = validRecipes.reduce((sum, recipe) => {
-            const recipeCost =
-              recipe.ingredients?.reduce(
-                (ingredientSum: number, recipeIngredient: any) => {
-                  const quantity = parseFloat(recipeIngredient.quantity);
-                  const costPerUnit = parseFloat(
-                    recipeIngredient.ingredient.costPerUnit
-                  );
-                  return ingredientSum + quantity * costPerUnit;
-                },
-                0
-              ) || 0;
-            return sum + recipeCost;
-          }, 0);
-
-          avgPrepTime = Math.round(
-            validRecipes.reduce((sum, recipe) => {
-              return sum + (recipe.prepTime || 0) + (recipe.cookTime || 0);
-            }, 0) / validRecipes.length
-          );
-        }
+        const totals = await computeMenuTotals(recipeIds, orgId);
+        totalCost = totals.totalCost;
+        avgPrepTime = totals.avgPrepTime;
       } catch (error) {
         console.error("Error calculating menu totals:", error);
       }

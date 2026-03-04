@@ -12,6 +12,8 @@ import {
   Scale,
   LogOut,
   CreditCard,
+  BarChart3,
+  Sparkles,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -23,6 +25,9 @@ import {
 } from "@/components/ui/sheet";
 import * as VisuallyHidden from "@radix-ui/react-visually-hidden";
 import ThemeToggle from "@/components/ThemeToggle";
+import { usePlanAccess } from "@/hooks/usePlanAccess";
+import type { PlanTier } from "@/lib/planTier";
+import PlanBadge from "@/components/PlanBadge";
 
 interface NavigationProps {
   showCreateButton?: boolean;
@@ -38,6 +43,7 @@ export default function Navigation({
   const navigate = useNavigate();
   const location = useLocation();
   const { logout } = useAuth();
+  const { canAccess, planTier, isLoading } = usePlanAccess();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   const handleLogout = async () => {
@@ -62,8 +68,14 @@ export default function Navigation({
     { path: "/inventory", label: "Inventory", icon: Package },
     { path: "/prep-list", label: "Prep Lists", icon: Calculator },
     { path: "/unit-converter", label: "Unit Converter", icon: Scale },
+    { path: "/analytics", label: "Analytics", icon: BarChart3, requiresPlan: "pro" as PlanTier },
+    { path: "/ai-studio", label: "AI Studio", icon: Sparkles, requiresPlan: "ai" as PlanTier },
     { path: "/billing", label: "Billing", icon: CreditCard },
   ];
+
+  const visibleNavigationItems = navigationItems.filter((item) =>
+    item.requiresPlan ? canAccess(item.requiresPlan) : true
+  );
 
   const handleNavigation = (path: string) => {
     navigate(path);
@@ -81,7 +93,7 @@ export default function Navigation({
     <>
       {/* Desktop Navigation */}
       <div className="hidden md:flex items-center space-x-3">
-        {navigationItems.map(({ path, label, icon: Icon }) => (
+        {visibleNavigationItems.map(({ path, label, icon: Icon }) => (
           <Button
             key={path}
             variant={getButtonVariant(path)}
@@ -108,6 +120,7 @@ export default function Navigation({
           </Button>
         )}
 
+        <PlanBadge planTier={planTier} loading={isLoading} />
         <ThemeToggle />
         <Button variant="ghost" size="sm" onClick={handleLogout} title="Sign out">
           <LogOut className="h-4 w-4" />
@@ -132,16 +145,19 @@ export default function Navigation({
                 <h2 className="text-lg font-semibold text-foreground">
                   Navigation
                 </h2>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setIsMobileMenuOpen(false)}
-                >
-                  <X className="h-4 w-4" />
-                </Button>
+                <div className="flex items-center gap-2">
+                  <PlanBadge planTier={planTier} loading={isLoading} />
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setIsMobileMenuOpen(false)}
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                </div>
               </div>
 
-              {navigationItems.map(({ path, label, icon: Icon }) => (
+              {visibleNavigationItems.map(({ path, label, icon: Icon }) => (
                 <Button
                   key={path}
                   variant={isActive(path) ? "default" : "outline"}

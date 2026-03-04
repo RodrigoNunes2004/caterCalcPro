@@ -41,6 +41,7 @@ async function runAuthMigration(client: any): Promise<void> {
       "id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
       "name" text NOT NULL,
       "plan" varchar(20) DEFAULT 'trial',
+      "plan_tier" varchar(20) DEFAULT 'starter',
       "trial_ends_at" timestamp,
       "subscription_status" varchar(20) DEFAULT 'trialing',
       "created_at" timestamp DEFAULT now() NOT NULL,
@@ -93,6 +94,7 @@ async function runOrganizationIdMigration(client: any): Promise<void> {
     const orgValues: any = {
       name: "Development",
       plan: "trial",
+      planTier: "starter",
       trialEndsAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
       subscriptionStatus: "trialing",
     };

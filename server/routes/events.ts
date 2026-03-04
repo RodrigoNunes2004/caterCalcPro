@@ -7,6 +7,7 @@ import {
   updateEventSchema,
   insertEventRecipeSchema,
 } from "../../shared/schema.js";
+import { calculateEventCost } from "../services/pricingEngine.js";
 
 const router = Router();
 router.use(authMiddleware, requireBillingAccess);
@@ -200,7 +201,7 @@ router.get("/events/:id/calculate", async (req: AuthRequest, res) => {
     const orgId = req.auth!.organizationId;
     console.log(`Calculating total costs for event ${id}`);
 
-    const calculation = await storage.calculateEventCosts(id, orgId);
+    const calculation = await calculateEventCost(id, orgId);
 
     console.log("Event calculation result:", calculation);
     res.json(calculation);

@@ -3,9 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import {
   ChefHat,
   Calculator,
-  Users,
   DollarSign,
-  Clock,
   CheckCircle,
   ArrowRight,
   Star,
@@ -17,7 +15,6 @@ import {
   Shield,
   Mail,
   Eye,
-  CreditCard,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -28,55 +25,49 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useAuth } from "@/contexts/AuthContext";
+import { usePlanAccess } from "@/hooks/usePlanAccess";
+import PlanBadge from "@/components/PlanBadge";
 
 interface Feature {
   icon: React.ReactNode;
   title: string;
   description: string;
   benefit: string;
+  availability: string;
+  availabilityClassName: string;
 }
 
 const features: Feature[] = [
   {
     icon: <Calculator className="h-6 w-6" />,
-    title: "Smart Recipe Scaling",
+    title: "Starter Plan - Core Tools",
     description:
-      "Automatically scale recipes for any guest count with precision unit conversion",
-    benefit: "Save 3+ hours per event on calculations",
+      "Calculate recipe costs, scale ingredients for event size, and run day-to-day catering operations in one place.",
+    benefit:
+      "Includes recipe scaling, event costing, prep lists, shopping lists, and recipe/menu/event organization.",
+    availability: "Available now",
+    availabilityClassName: "bg-green-100 text-green-800",
   },
   {
     icon: <DollarSign className="h-6 w-6" />,
-    title: "Real-time Cost Analysis",
+    title: "Pro Plan - Advanced Insights",
     description:
-      "Track ingredient costs, profit margins, and GST calculations instantly",
-    benefit: "Increase profit margins by 15-25%",
+      "Designed for growing teams that want deeper visibility into costs, margins, and performance trends.",
+    benefit:
+      "Planned: real-time analytics dashboard, profit margin reports, GST breakdowns, and priority support.",
+    availability: "Coming soon",
+    availabilityClassName: "bg-amber-100 text-amber-800",
   },
   {
-    icon: <Package className="h-6 w-6" />,
-    title: "Inventory Management",
+    icon: <Zap className="h-6 w-6" />,
+    title: "AI Plan - Premium Automation",
     description:
-      "Monitor stock levels, track expiry dates, and get low-stock alerts",
-    benefit: "Reduce food waste by 30%",
-  },
-  {
-    icon: <ShoppingCart className="h-6 w-6" />,
-    title: "Shopping List Generator",
-    description: "Auto-generate consolidated shopping lists with total costs",
-    benefit: "Cut shopping time in half",
-  },
-  {
-    icon: <Calendar className="h-6 w-6" />,
-    title: "Event Planning",
-    description:
-      "Plan multiple events, compare costs, and track preparation timelines",
-    benefit: "Manage 5x more events efficiently",
-  },
-  {
-    icon: <BarChart3 className="h-6 w-6" />,
-    title: "Profit Analytics",
-    description: "Detailed reports on costs, margins, and business performance",
-    benefit: "Make data-driven pricing decisions",
+      "AI-assisted recipe and menu creation to speed up planning while keeping costing workflows consistent.",
+    benefit:
+      "Planned: AI recipe generation, AI menu suggestions, auto-scaled ingredient quantities, and cost/margin estimates.",
+    availability: "Future plan",
+    availabilityClassName: "bg-purple-100 text-purple-800",
   },
 ];
 
@@ -130,10 +121,12 @@ const useCases = [
 
 export default function LandingPage() {
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const { planTier, isLoading: planLoading } = usePlanAccess();
   const [stripeLoading, setStripeLoading] = useState(false);
 
   const handleGoToApp = () => {
-    navigate("/login");
+    navigate(user ? "/" : "/login");
   };
 
   const handleStartStripeCheckout = async () => {
@@ -146,6 +139,7 @@ export default function LandingPage() {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
+          planTier: "starter",
           successUrl: `${baseUrl}/register?billing=success`,
           cancelUrl: `${baseUrl}/?billing=cancelled`,
         }),
@@ -288,12 +282,26 @@ export default function LandingPage() {
               <h1 className="text-2xl font-bold text-gray-900">Gastro Grid</h1>
             </div>
             <div className="flex items-center space-x-4">
-              <Button variant="outline" asChild>
-                <Link to="/login">Sign In</Link>
-              </Button>
-              <Button className="bg-orange-600 hover:bg-orange-700" asChild>
-                <Link to="/register">Start Free Trial</Link>
-              </Button>
+              {user ? (
+                <>
+                  <PlanBadge planTier={planTier} loading={planLoading} />
+                  <Button variant="outline" onClick={handleGoToApp}>
+                    Go to App
+                  </Button>
+                  <Button className="bg-orange-600 hover:bg-orange-700" asChild>
+                    <Link to="/billing">Manage Plan</Link>
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <Button variant="outline" asChild>
+                    <Link to="/login">Sign In</Link>
+                  </Button>
+                  <Button className="bg-orange-600 hover:bg-orange-700" asChild>
+                    <Link to="/register">Start Free Trial</Link>
+                  </Button>
+                </>
+              )}
             </div>
           </div>
         </div>
@@ -306,13 +314,13 @@ export default function LandingPage() {
             Professional Catering Management
           </Badge>
           <h1 className="text-5xl md:text-6xl font-bold text-gray-900 mb-6">
-            Scale Your Catering
-            <span className="text-orange-600"> Business</span>
+            Cater Smarter,
+            <span className="text-orange-600"> Not Harder</span>
           </h1>
           <p className="text-xl text-gray-600 mb-8 max-w-3xl mx-auto leading-relaxed">
-            The only system you need for efficient kitchen catering operations.
-            Calculate costs, scale recipes, and manage inventory for large
-            buffet events with precision and confidence.
+            All-in-one platform to manage recipes, menus, events, and costs for
+            catering businesses. Built to help improve margins through accurate
+            costing and better planning.
           </p>
 
           <div className="flex flex-col sm:flex-row gap-4 justify-center mb-12">
@@ -403,16 +411,15 @@ export default function LandingPage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-16">
             <h2 className="text-4xl font-bold text-gray-900 mb-4">
-              Everything You Need to Scale Your Catering
+              Plans Built for Catering Teams
             </h2>
             <p className="text-xl text-gray-600 max-w-3xl mx-auto">
-              From recipe scaling to cost analysis, Gastro Grid handles the
-              complex calculations so you can focus on creating amazing culinary
-              experiences.
+              Clear feature tiers help you choose what fits today while showing
+              what is coming next.
             </p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
             {features.map((feature, index) => (
               <Card
                 key={index}
@@ -428,11 +435,12 @@ export default function LandingPage() {
                 </CardHeader>
                 <CardContent>
                   <p className="text-gray-600 mb-3">{feature.description}</p>
+                  <p className="text-gray-700 mb-4">{feature.benefit}</p>
                   <Badge
                     variant="secondary"
-                    className="bg-green-100 text-green-800"
+                    className={feature.availabilityClassName}
                   >
-                    {feature.benefit}
+                    {feature.availability}
                   </Badge>
                 </CardContent>
               </Card>
@@ -527,77 +535,110 @@ export default function LandingPage() {
               Simple, Transparent Pricing
             </h2>
             <p className="text-xl text-gray-600">
-              Start with a free trial, then continue with our affordable monthly
-              plan.
+              Start with Starter now, then upgrade as advanced analytics and AI
+              features roll out.
             </p>
           </div>
 
-          <div className="max-w-md mx-auto">
-            <Card className="border-2 border-orange-200 shadow-xl">
-              <CardHeader className="text-center bg-orange-600 text-white rounded-t-lg">
-                <CardTitle className="text-2xl">Professional Plan</CardTitle>
-                <div className="text-4xl font-bold mt-4">
-                  $79<span className="text-lg font-normal">/month</span>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <Card className="border-2 border-orange-200 shadow-md">
+              <CardHeader className="text-center">
+                <CardTitle className="text-2xl">Starter</CardTitle>
+                <div className="text-4xl font-bold mt-2">
+                  $39<span className="text-lg font-normal">/month</span>
                 </div>
-                <p className="text-orange-100 mt-2">
-                  Billed monthly, cancel anytime
-                </p>
+                <p className="text-sm text-gray-600 mt-1">Available now</p>
               </CardHeader>
-              <CardContent className="pt-8">
-                <div className="space-y-4">
-                  <div className="flex items-center space-x-3">
-                    <CheckCircle className="h-5 w-5 text-green-500" />
-                    <span>Unlimited recipes and events</span>
-                  </div>
-                  <div className="flex items-center space-x-3">
-                    <CheckCircle className="h-5 w-5 text-green-500" />
-                    <span>Advanced cost calculations</span>
-                  </div>
-                  <div className="flex items-center space-x-3">
-                    <CheckCircle className="h-5 w-5 text-green-500" />
-                    <span>Inventory management</span>
-                  </div>
-                  <div className="flex items-center space-x-3">
-                    <CheckCircle className="h-5 w-5 text-green-500" />
-                    <span>Profit analytics & reports</span>
-                  </div>
-                  <div className="flex items-center space-x-3">
-                    <CheckCircle className="h-5 w-5 text-green-500" />
-                    <span>Priority email support</span>
-                  </div>
-                  <div className="flex items-center space-x-3">
-                    <CheckCircle className="h-5 w-5 text-green-500" />
-                    <span>Mobile & desktop access</span>
-                  </div>
+              <CardContent className="space-y-3">
+                <div className="flex items-center space-x-2">
+                  <CheckCircle className="h-4 w-4 text-green-500" />
+                  <span className="text-sm">Core costing and scaling</span>
                 </div>
-
-                <div className="mt-8 p-4 bg-green-50 rounded-lg">
-                  <div className="flex items-center space-x-2 text-green-800">
-                    <Shield className="h-5 w-5" />
-                    <span className="font-semibold">30-Day Free Trial</span>
-                  </div>
-                  <p className="text-sm text-green-700 mt-1">
-                    Full access to all features. No credit card required.
-                  </p>
+                <div className="flex items-center space-x-2">
+                  <CheckCircle className="h-4 w-4 text-green-500" />
+                  <span className="text-sm">Prep and shopping workflows</span>
                 </div>
-
-                <Button className="w-full mt-6 bg-orange-600 hover:bg-orange-700 text-lg py-3" asChild>
-                  <Link to="/register">
-                    Start Your Free Trial
-                    <ArrowRight className="h-5 w-5 ml-2" />
-                  </Link>
-                </Button>
-                <Button
-                  variant="outline"
-                  className="w-full mt-3 text-lg py-3"
-                  onClick={handleStartStripeCheckout}
-                  disabled={stripeLoading}
-                >
-                  <CreditCard className="h-5 w-5 mr-2" />
-                  {stripeLoading ? "Redirecting..." : "Subscribe with Stripe"}
-                </Button>
+                <div className="flex items-center space-x-2">
+                  <CheckCircle className="h-4 w-4 text-green-500" />
+                  <span className="text-sm">Recipe, menu, and event management</span>
+                </div>
               </CardContent>
             </Card>
+
+            <Card className="border-2 border-gray-200 shadow-md">
+              <CardHeader className="text-center">
+                <CardTitle className="text-2xl">Pro</CardTitle>
+                <div className="text-4xl font-bold mt-2">
+                  $79<span className="text-lg font-normal">/month</span>
+                </div>
+                <p className="text-sm text-amber-700 mt-1">Coming soon</p>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div className="flex items-center space-x-2">
+                  <BarChart3 className="h-4 w-4 text-orange-600" />
+                  <span className="text-sm">Real-time cost analytics dashboard</span>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <Calculator className="h-4 w-4 text-orange-600" />
+                  <span className="text-sm">Margin reports and GST breakdowns</span>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <Shield className="h-4 w-4 text-orange-600" />
+                  <span className="text-sm">Priority email support</span>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="border-2 border-gray-200 shadow-md">
+              <CardHeader className="text-center">
+                <CardTitle className="text-2xl">AI Plan</CardTitle>
+                <div className="text-4xl font-bold mt-2">
+                  $99<span className="text-lg font-normal">/month</span>
+                </div>
+                <p className="text-sm text-purple-700 mt-1">Future plan</p>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div className="flex items-center space-x-2">
+                  <Zap className="h-4 w-4 text-purple-600" />
+                  <span className="text-sm">AI recipe generation</span>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <Zap className="h-4 w-4 text-purple-600" />
+                  <span className="text-sm">AI menu suggestions</span>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <Zap className="h-4 w-4 text-purple-600" />
+                  <span className="text-sm">Suggested cost and margin estimates</span>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          <div className="max-w-xl mx-auto mt-8 p-4 bg-green-50 rounded-lg">
+            <div className="flex items-center justify-center space-x-2 text-green-800">
+              <Shield className="h-5 w-5" />
+              <span className="font-semibold">30-Day Free Trial on Starter</span>
+            </div>
+            <p className="text-sm text-green-700 mt-1 text-center">
+              Upgrade anytime as Pro and AI features become available.
+            </p>
+          </div>
+
+          <div className="max-w-md mx-auto mt-6">
+            <Button className="w-full bg-orange-600 hover:bg-orange-700 text-lg py-3" asChild>
+              <Link to="/register">
+                Start Your Free Trial
+                <ArrowRight className="h-5 w-5 ml-2" />
+              </Link>
+            </Button>
+            <Button
+              variant="outline"
+              className="w-full mt-3 text-lg py-3"
+              onClick={handleStartStripeCheckout}
+              disabled={stripeLoading}
+            >
+              {stripeLoading ? "Redirecting..." : "See Subscription Options"}
+            </Button>
           </div>
         </div>
       </section>

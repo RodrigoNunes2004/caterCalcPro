@@ -16,6 +16,7 @@ export const organizations = pgTable("organizations", {
   id: uuid("id").defaultRandom().primaryKey(),
   name: text("name").notNull(),
   plan: varchar("plan", { length: 20 }).default("trial"), // trial | pro | enterprise
+  planTier: varchar("plan_tier", { length: 20 }).default("starter"), // starter | pro | ai
   trialEndsAt: timestamp("trial_ends_at"),
   subscriptionStatus: varchar("subscription_status", {
     length: 20,
@@ -57,6 +58,8 @@ export const recipes = pgTable("recipes", {
   prepTime: integer("prep_time"), // in minutes
   cookTime: integer("cook_time"), // in minutes
   isSubRecipe: boolean("is_sub_recipe").default(false),
+  isAIGenerated: boolean("is_ai_generated").default(false),
+  aiPrompt: text("ai_prompt"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
@@ -179,6 +182,38 @@ export const inventory = pgTable("inventory", {
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
+// Event cost snapshots (historical analytics, immutable point-in-time numbers)
+export const eventSnapshots = pgTable("event_snapshots", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  organizationId: uuid("organization_id")
+    .references(() => organizations.id, { onDelete: "cascade" })
+    .notNull(),
+  eventId: uuid("event_id")
+    .references(() => events.id, { onDelete: "cascade" })
+    .notNull(),
+  totalCost: decimal("total_cost", { precision: 12, scale: 2 }).notNull().default("0"),
+  targetPrice: decimal("target_price", { precision: 12, scale: 2 }).notNull().default("0"),
+  profit: decimal("profit", { precision: 12, scale: 2 }).notNull().default("0"),
+  profitMargin: decimal("profit_margin", { precision: 7, scale: 2 }).notNull().default("0"),
+  guestCount: integer("guest_count").notNull().default(0),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// Inventory movement ledger for reporting and spend analysis
+export const inventoryTransactions = pgTable("inventory_transactions", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  organizationId: uuid("organization_id")
+    .references(() => organizations.id, { onDelete: "cascade" })
+    .notNull(),
+  inventoryId: uuid("inventory_id")
+    .references(() => inventory.id, { onDelete: "cascade" })
+    .notNull(),
+  quantityChange: decimal("quantity_change", { precision: 12, scale: 4 }).notNull(),
+  reason: varchar("reason", { length: 40 }).notNull(), // prep_deduction | manual | restock
+  referenceId: uuid("reference_id"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
 // Menu-Recipe relationships (which recipes are included in which menus)
 export const menuRecipes = pgTable("menu_recipes", {
   id: uuid("id").defaultRandom().primaryKey(),
@@ -233,6 +268,14 @@ export const insertInventorySchema = createInsertSchema(inventory);
 export const selectInventorySchema = createSelectSchema(inventory);
 export const updateInventorySchema = insertInventorySchema.partial();
 
+export const insertEventSnapshotSchema = createInsertSchema(eventSnapshots);
+export const selectEventSnapshotSchema = createSelectSchema(eventSnapshots);
+
+export const insertInventoryTransactionSchema =
+  createInsertSchema(inventoryTransactions);
+export const selectInventoryTransactionSchema =
+  createSelectSchema(inventoryTransactions);
+
 // TypeScript types
 export type Organization = z.infer<typeof selectOrganizationSchema>;
 export type InsertOrganization = z.infer<typeof insertOrganizationSchema>;
@@ -271,6 +314,10 @@ export type InsertMenuRecipe = z.infer<typeof insertMenuRecipeSchema>;
 
 export type Inventory = z.infer<typeof selectInventorySchema>;
 export type InsertInventory = z.infer<typeof insertInventorySchema>;
+export type EventSnapshot = z.infer<typeof selectEventSnapshotSchema>;
+export type InsertEventSnapshot = z.infer<typeof insertEventSnapshotSchema>;
+export type InventoryTransaction = z.infer<typeof selectInventoryTransactionSchema>;
+export type InsertInventoryTransaction = z.infer<typeof insertInventoryTransactionSchema>;
 
 // Extended types for API responses with relationships
 export type RecipeWithIngredients = Recipe & {

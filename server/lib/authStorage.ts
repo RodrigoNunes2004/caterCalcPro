@@ -30,6 +30,7 @@ export async function createOrganizationAndOwner(params: {
   const orgValues = {
     name: companyName,
     plan: "trial",
+    planTier: "starter",
     trialEndsAt,
     subscriptionStatus: "trialing",
   };

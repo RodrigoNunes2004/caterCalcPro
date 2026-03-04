@@ -51,6 +51,7 @@ export async function requireBillingAccess(
       code: "SUBSCRIPTION_REQUIRED",
       billing: {
         plan: org.plan || "trial",
+        planTier: org.planTier || (org.plan === "pro" ? "pro" : "starter"),
         subscriptionStatus: org.subscriptionStatus || "trialing",
         trialEndsAt: org.trialEndsAt || null,
         subscriptionCurrentPeriodEnd: org.subscriptionCurrentPeriodEnd || null,

@@ -6,6 +6,69 @@ import { verifyToken } from "../lib/auth.js";
 
 const router = Router();
 
+type PlanTier = "starter" | "pro" | "ai";
+
+function getPriceMap() {
+  const starter = String(process.env.STRIPE_PRICE_ID_STARTER || "").trim();
+  const pro = String(
+    process.env.STRIPE_PRICE_ID_PRO || process.env.STRIPE_PRICE_ID || ""
+  ).trim();
+  const ai = String(process.env.STRIPE_PRICE_ID_AI || "").trim();
+  return { starter, pro, ai };
+}
+
+function normalizeTier(value: unknown): PlanTier {
+  const v = String(value || "").toLowerCase();
+  if (v === "ai") return "ai";
+  if (v === "pro") return "pro";
+  return "starter";
+}
+
+function getPlanFromTier(tier: PlanTier): string {
+  if (tier === "ai") return "enterprise";
+  if (tier === "pro") return "pro";
+  return "trial";
+}
+
+function resolveCheckoutTarget(body: any): {
+  priceId: string;
+  planTier: PlanTier;
+} {
+  const requestedTier = normalizeTier(body?.planTier);
+  const requestedPriceId = String(body?.priceId || "").trim();
+  const prices = getPriceMap();
+
+  if (requestedPriceId) {
+    if (requestedPriceId === prices.ai) return { priceId: requestedPriceId, planTier: "ai" };
+    if (requestedPriceId === prices.pro) return { priceId: requestedPriceId, planTier: "pro" };
+    if (requestedPriceId === prices.starter) {
+      return { priceId: requestedPriceId, planTier: "starter" };
+    }
+    // Unknown custom price id defaults to requested tier semantics.
+    return { priceId: requestedPriceId, planTier: requestedTier };
+  }
+
+  const tierPrice =
+    requestedTier === "ai"
+      ? prices.ai
+      : requestedTier === "pro"
+        ? prices.pro
+        : prices.starter || prices.pro;
+
+  if (tierPrice && tierPrice === prices.ai) return { priceId: tierPrice, planTier: "ai" };
+  if (tierPrice && tierPrice === prices.pro) return { priceId: tierPrice, planTier: "pro" };
+  return { priceId: tierPrice, planTier: "starter" };
+}
+
+function inferPlanTierFromStripePriceId(priceId: string | null): PlanTier {
+  const id = String(priceId || "").trim();
+  const prices = getPriceMap();
+  if (id && id === prices.ai) return "ai";
+  if (id && id === prices.pro) return "pro";
+  if (id && id === prices.starter) return "starter";
+  return "starter";
+}
+
 function getBaseUrl(req: any): string {
   const origin = req.headers?.origin;
   if (origin) return origin;
@@ -25,18 +88,19 @@ function getStripeClient(): Stripe {
 function mapStripeSubscriptionStatus(status: string): {
   subscriptionStatus: string;
   plan: string;
+  planTier: string;
 } {
   const s = String(status || "").toLowerCase();
   if (s === "active" || s === "trialing") {
-    return { subscriptionStatus: s, plan: "pro" };
+    return { subscriptionStatus: s, plan: "pro", planTier: "pro" };
   }
   if (s === "past_due" || s === "unpaid" || s === "incomplete") {
-    return { subscriptionStatus: s, plan: "trial" };
+    return { subscriptionStatus: s, plan: "trial", planTier: "starter" };
   }
   if (s === "canceled" || s === "cancelled") {
-    return { subscriptionStatus: "cancelled", plan: "trial" };
+    return { subscriptionStatus: "cancelled", plan: "trial", planTier: "starter" };
   }
-  return { subscriptionStatus: s || "trialing", plan: "trial" };
+  return { subscriptionStatus: s || "trialing", plan: "trial", planTier: "starter" };
 }
 
 function getAuthOrganizationId(req: Request): string | null {
@@ -50,10 +114,16 @@ function getAuthOrganizationId(req: Request): string | null {
 }
 
 router.get("/billing/config", (_req, res) => {
+  const prices = getPriceMap();
   res.json({
-    enabled: Boolean(process.env.STRIPE_SECRET_KEY && process.env.STRIPE_PRICE_ID),
+    enabled: Boolean(process.env.STRIPE_SECRET_KEY && (prices.pro || prices.starter)),
     publishableKey: process.env.STRIPE_PUBLISHABLE_KEY || null,
-    defaultPriceId: process.env.STRIPE_PRICE_ID || null,
+    defaultPriceId: prices.pro || prices.starter || null,
+    prices: {
+      starter: prices.starter || null,
+      pro: prices.pro || null,
+      ai: prices.ai || null,
+    },
   });
 });
 
@@ -62,7 +132,8 @@ router.post("/billing/create-checkout-session", async (req, res) => {
     const stripe = getStripeClient();
     const baseUrl = getBaseUrl(req);
     const body = req.body || {};
-    const priceId = String(body.priceId || process.env.STRIPE_PRICE_ID || "").trim();
+    const target = resolveCheckoutTarget(body);
+    const priceId = String(target.priceId || "").trim();
     const email = String(body.email || "").trim();
     const organizationId = getAuthOrganizationId(req);
 
@@ -87,6 +158,8 @@ router.post("/billing/create-checkout-session", async (req, res) => {
       ...(email ? { customer_email: email } : {}),
       metadata: {
         source: "landing_page",
+        planTier: target.planTier,
+        priceId,
         ...(organizationId ? { organizationId } : {}),
       },
     });
@@ -114,6 +187,7 @@ router.get("/billing/status", authMiddleware, async (req: AuthRequest, res) => {
     return res.json({
       organizationId: org.id,
       plan: org.plan || "trial",
+      planTier: org.planTier || (org.plan === "pro" ? "pro" : "starter"),
       subscriptionStatus: org.subscriptionStatus || "trialing",
       trialEndsAt: org.trialEndsAt || null,
       stripeCustomerId: org.stripeCustomerId || null,
@@ -165,12 +239,17 @@ router.post("/billing/webhook", async (req, res) => {
       ).trim() || null;
 
       if (metadataOrgId) {
+        const sessionPriceId = String(eventObject?.metadata?.priceId || "").trim() || null;
+        const sessionPlanTier = normalizeTier(
+          eventObject?.metadata?.planTier || inferPlanTierFromStripePriceId(sessionPriceId)
+        );
         await storage.updateOrganizationBillingById(metadataOrgId, {
-          plan: "pro",
+          plan: getPlanFromTier(sessionPlanTier),
+          planTier: sessionPlanTier,
           subscriptionStatus: "active",
           stripeCustomerId: customerId,
           stripeSubscriptionId: subscriptionId,
-          stripePriceId: String(eventObject?.metadata?.priceId || "") || null,
+          stripePriceId: sessionPriceId,
           billingEmail,
         });
       }
@@ -189,10 +268,16 @@ router.post("/billing/webhook", async (req, res) => {
       const currentPeriodEnd =
         currentPeriodEndUnix > 0 ? new Date(currentPeriodEndUnix * 1000) : null;
       const mapped = mapStripeSubscriptionStatus(String(eventObject?.status || ""));
+      const inferredTier = inferPlanTierFromStripePriceId(priceId);
+      const resolvedTier =
+        mapped.subscriptionStatus === "active" || mapped.subscriptionStatus === "trialing"
+          ? inferredTier
+          : "starter";
 
       if (customerId) {
         await storage.updateOrganizationBillingByStripeCustomerId(customerId, {
-          plan: mapped.plan,
+          plan: getPlanFromTier(resolvedTier),
+          planTier: resolvedTier,
           subscriptionStatus: mapped.subscriptionStatus,
           stripeSubscriptionId: subscriptionId,
           stripePriceId: priceId,
