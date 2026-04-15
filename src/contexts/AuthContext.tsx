@@ -1,4 +1,11 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
+import React, {
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+  useCallback,
+  useRef,
+} from "react";
 import { setAuthToken, getAuthToken } from "@/lib/authToken";
 
 export interface AuthUser {
@@ -23,8 +30,11 @@ const AuthContext = createContext<AuthContextType | null>(null);
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  /** Bumps when login/register succeeds so a stale /auth/me (401) from before sign-in cannot clear the new token. */
+  const authEpochRef = useRef(0);
 
   const refreshUser = useCallback(async () => {
+    const epoch = authEpochRef.current;
     try {
       const headers: HeadersInit = {};
       const t = getAuthToken();
@@ -33,6 +43,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         credentials: "include",
         headers,
       });
+      if (epoch !== authEpochRef.current) return;
       if (res.ok) {
         const data = await res.json();
         setUser(data.user);
@@ -41,6 +52,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setUser(null);
       }
     } catch {
+      if (epoch !== authEpochRef.current) return;
       setUser(null);
     } finally {
       setIsLoading(false);
@@ -63,6 +75,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (!res.ok) {
         return { ok: false, error: data.error || "Login failed" };
       }
+      authEpochRef.current += 1;
       setUser(data.user);
       if (data.token) setAuthToken(data.token); // fallback when cookies don't work
       return { ok: true };
@@ -81,12 +94,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           credentials: "include",
         });
         const data = await res.json().catch(() => ({}));
-if (!res.ok) {
-        return { ok: false, error: data.error || "Registration failed" };
-      }
-      setUser(data.user);
-      if (data.token) setAuthToken(data.token); // fallback when cookies don't work
-      return { ok: true };
+        if (!res.ok) {
+          return { ok: false, error: data.error || "Registration failed" };
+        }
+        authEpochRef.current += 1;
+        setUser(data.user);
+        if (data.token) setAuthToken(data.token); // fallback when cookies don't work
+        return { ok: true };
       } catch (err) {
         return { ok: false, error: "Network error" };
       }
@@ -95,6 +109,7 @@ if (!res.ok) {
   );
 
   const logout = useCallback(async () => {
+    authEpochRef.current += 1;
     setAuthToken(null);
     try {
       await fetch("/api/auth/logout", { method: "POST", credentials: "include" });
