@@ -85,6 +85,33 @@ export default function BillingPage() {
   const hasRequiredPlanAccess =
     !effectiveRequiredPlan || hasPlanAccess(currentPlanTier, effectiveRequiredPlan);
 
+  const hasExplicitFrom = useMemo(() => {
+    return new URLSearchParams(location.search).has("from");
+  }, [location.search]);
+
+  const bouncedFromUpgradeGateRef = useRef(false);
+
+  useEffect(() => {
+    bouncedFromUpgradeGateRef.current = false;
+  }, [location.search]);
+
+  /** If an upgrade gate sent the user here but they already have the required plan, send them back (e.g. Pro → Analytics). */
+  useEffect(() => {
+    if (loading || !status || !hasExplicitFrom) return;
+    if (!effectiveRequiredPlan || !hasRequiredPlanAccess) return;
+    if (bouncedFromUpgradeGateRef.current) return;
+    bouncedFromUpgradeGateRef.current = true;
+    navigate(fromPath, { replace: true });
+  }, [
+    loading,
+    status,
+    hasExplicitFrom,
+    effectiveRequiredPlan,
+    hasRequiredPlanAccess,
+    fromPath,
+    navigate,
+  ]);
+
   const loadStatus = async () => {
     try {
       setLoading(true);

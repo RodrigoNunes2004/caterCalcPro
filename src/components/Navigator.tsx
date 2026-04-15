@@ -43,7 +43,7 @@ export default function Navigation({
   const navigate = useNavigate();
   const location = useLocation();
   const { logout } = useAuth();
-  const { canAccess, planTier, isLoading } = usePlanAccess();
+  const { canAccess, planTier, isLoading: planAccessLoading } = usePlanAccess();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   const handleLogout = async () => {
@@ -73,8 +73,11 @@ export default function Navigation({
     { path: "/billing", label: "Billing", icon: CreditCard },
   ];
 
+  /** While billing status resolves, do not hide Pro/AI links — `canAccess` is false without `data` and sent users to Upgrade/Billing. `RequirePlan` still gates routes. */
   const visibleNavigationItems = navigationItems.filter((item) =>
-    item.requiresPlan ? canAccess(item.requiresPlan) : true
+    item.requiresPlan
+      ? planAccessLoading || canAccess(item.requiresPlan)
+      : true
   );
 
   const handleNavigation = (path: string) => {
@@ -120,7 +123,7 @@ export default function Navigation({
           </Button>
         )}
 
-        <PlanBadge planTier={planTier} loading={isLoading} />
+        <PlanBadge planTier={planTier} loading={planAccessLoading} />
         <ThemeToggle />
         <Button variant="ghost" size="sm" onClick={handleLogout} title="Sign out">
           <LogOut className="h-4 w-4" />
@@ -146,7 +149,7 @@ export default function Navigation({
                   Navigation
                 </h2>
                 <div className="flex items-center gap-2">
-                  <PlanBadge planTier={planTier} loading={isLoading} />
+                  <PlanBadge planTier={planTier} loading={planAccessLoading} />
                   <Button
                     variant="ghost"
                     size="sm"

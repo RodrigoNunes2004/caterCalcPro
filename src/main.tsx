@@ -26,8 +26,12 @@ window.fetch = function (input: RequestInfo | URL, init?: RequestInit) {
           pathOnly !== "/api/billing/config" &&
           pathOnly !== "/api/billing/webhook";
 
+        // Analytics routes are already gated by RequirePlan; a 403 here would full-page redirect
+        // Pro users to Billing even when `/api/billing/status` shows the correct tier. Surface errors in-app instead.
+        const isAnalyticsApi = pathOnly.startsWith("/api/analytics/");
         if (
           shouldHandleBilling &&
+          !isAnalyticsApi &&
           (response.status === 402 || response.status === 403) &&
           !billingRedirectInProgress &&
           window.location.pathname !== "/billing"

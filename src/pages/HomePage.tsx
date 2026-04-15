@@ -33,7 +33,7 @@ export default function HomePage() {
   const navigate = useNavigate();
   const [guestCount, setGuestCount] = useState<number>(DEFAULT_GUEST_COUNT);
   const [hiddenRecipes, setHiddenRecipes] = useState<Set<string>>(new Set());
-  const { canAccess } = usePlanAccess();
+  const { canAccess, isLoading: planAccessLoading } = usePlanAccess();
 
   // Fetch recent recipes (limit to 3 most recent)
   const { data: recipesData, isLoading: recipesLoading } = useRecipes({
@@ -319,7 +319,7 @@ export default function HomePage() {
               <p className="text-sm text-muted-foreground mb-3">
                 Access trend dashboards, snapshots, and deeper margin visibility.
               </p>
-              {canAccess("pro") ? (
+              {planAccessLoading || canAccess("pro") ? (
                 <Button
                   className="w-full mt-3"
                   variant="outline"
@@ -354,7 +354,7 @@ export default function HomePage() {
               <p className="text-sm text-muted-foreground mb-3">
                 Generate AI-assisted recipe drafts and estimate costs quickly.
               </p>
-              {canAccess("ai") ? (
+              {planAccessLoading || canAccess("ai") ? (
                 <Button
                   className="w-full mt-3"
                   variant="outline"
