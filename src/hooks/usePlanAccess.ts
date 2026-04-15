@@ -42,11 +42,17 @@ export function usePlanAccess() {
     return hasPlanAccess(planTier, required);
   };
 
+  // React Query v5: `isLoading` alone can be false while `data` is still missing (e.g. pending without
+  // the exact v4 semantics). RequirePlan must not evaluate access until the billing query has finished
+  // at least once — otherwise we redirect to /billing while the user is actually Pro.
+  const isPlanGateLoading =
+    !!user?.organizationId && !query.isError && !query.isFetched;
+
   return {
     planTier,
     subscriptionStatus: query.data?.subscriptionStatus || null,
     canAccess,
-    isLoading: query.isLoading,
+    isLoading: isPlanGateLoading,
     isError: query.isError,
     refetch: query.refetch,
   };
