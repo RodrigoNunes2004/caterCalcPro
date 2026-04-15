@@ -45,6 +45,7 @@ import {
   rangeQueryStateToSearchParams,
   type AnalyticsRangeQueryState,
 } from "@/lib/analyticsDateRangeClient";
+import { fetchAnalyticsJson } from "@/lib/analyticsApi";
 
 type OverviewData = {
   monthlyProfit?: number;
@@ -200,19 +201,16 @@ export default function AnalyticsPage() {
 
   const overviewQuery = useQuery({
     queryKey: ["analytics-overview", rangeQs],
-    queryFn: async (): Promise<OverviewData> => {
-      const response = await fetch(`/api/analytics/overview?${rangeQs}`);
-      if (!response.ok) throw new Error("Failed to load analytics overview");
-      return response.json();
-    },
+    queryFn: (): Promise<OverviewData> =>
+      fetchAnalyticsJson(`/api/analytics/overview?${rangeQs}`),
   });
 
   const trendsQuery = useQuery({
     queryKey: ["analytics-cost-trends", rangeQs],
     queryFn: async (): Promise<CostTrendRow[]> => {
-      const response = await fetch(`/api/analytics/cost-trends?${rangeQs}`);
-      if (!response.ok) throw new Error("Failed to load cost trends");
-      const data = await response.json();
+      const data = await fetchAnalyticsJson<{ trends?: CostTrendRow[] }>(
+        `/api/analytics/cost-trends?${rangeQs}`
+      );
       return Array.isArray(data?.trends) ? data.trends : [];
     },
   });
@@ -220,9 +218,9 @@ export default function AnalyticsPage() {
   const recipesQuery = useQuery({
     queryKey: ["analytics-top-cost-recipes", rangeQs],
     queryFn: async (): Promise<TopRecipeRow[]> => {
-      const response = await fetch(`/api/analytics/top-cost-recipes?${rangeQs}`);
-      if (!response.ok) throw new Error("Failed to load top recipes");
-      const data = await response.json();
+      const data = await fetchAnalyticsJson<{ recipes?: TopRecipeRow[] }>(
+        `/api/analytics/top-cost-recipes?${rangeQs}`
+      );
       return Array.isArray(data?.recipes) ? data.recipes : [];
     },
   });
@@ -238,9 +236,9 @@ export default function AnalyticsPage() {
     queryFn: async (): Promise<GstSummaryResponse> => {
       const params = new URLSearchParams(rangeQs);
       params.set("targetInclusive", gstTargetInclusive ? "true" : "false");
-      const response = await fetch(`/api/analytics/gst/summary?${params.toString()}`);
-      if (!response.ok) throw new Error("Failed to load GST summary");
-      return response.json();
+      return fetchAnalyticsJson<GstSummaryResponse>(
+        `/api/analytics/gst/summary?${params.toString()}`
+      );
     },
   });
 
@@ -309,7 +307,9 @@ export default function AnalyticsPage() {
               )}
               {overviewQuery.isError && (
                 <p className="text-destructive text-sm">
-                  Summary metrics could not be loaded.
+                  {overviewQuery.error instanceof Error
+                    ? overviewQuery.error.message
+                    : "Summary metrics could not be loaded."}
                 </p>
               )}
               {!overviewQuery.isLoading && !overviewQuery.isError && overview && (
@@ -380,7 +380,9 @@ export default function AnalyticsPage() {
                   )}
                   {trendsQuery.isError && (
                     <p className="text-destructive text-sm">
-                      Cost trend data could not be loaded.
+                      {trendsQuery.error instanceof Error
+                        ? trendsQuery.error.message
+                        : "Cost trend data could not be loaded."}
                     </p>
                   )}
                   {!trendsQuery.isLoading &&
@@ -525,7 +527,9 @@ export default function AnalyticsPage() {
                   )}
                   {gstQuery.isError && (
                     <p className="text-destructive text-sm">
-                      GST summary could not be loaded.
+                      {gstQuery.error instanceof Error
+                        ? gstQuery.error.message
+                        : "GST summary could not be loaded."}
                     </p>
                   )}
                   {gstQuery.data && (
@@ -704,7 +708,9 @@ export default function AnalyticsPage() {
                     )}
                     {recipesQuery.isError && (
                       <p className="text-destructive text-sm">
-                        Recipe list could not be loaded.
+                        {recipesQuery.error instanceof Error
+                          ? recipesQuery.error.message
+                          : "Recipe list could not be loaded."}
                       </p>
                     )}
                     {!recipesQuery.isLoading &&
