@@ -52,6 +52,9 @@ app.use("/api", async (req, res, next) => {
       const { default: prepListRoutes } = await import("../server/routes/prepLists.js");
       const { default: inventoryRoutes } = await import("../server/routes/inventory.js");
       const { default: billingRoutes } = await import("../server/routes/billing.js");
+      const { default: pricingEngineRoutes } = await import("../server/routes/pricingEngine.js");
+      const { default: analyticsRoutes } = await import("../server/routes/analytics.js");
+      const { default: aiRoutes } = await import("../server/routes/ai.js");
       const router = express.Router();
       router.use(healthRoutes);
       router.use(authRoutes);
@@ -62,6 +65,9 @@ app.use("/api", async (req, res, next) => {
       router.use(menuRoutes);
       router.use(prepListRoutes);
       router.use(inventoryRoutes);
+      router.use(pricingEngineRoutes);
+      router.use(analyticsRoutes);
+      router.use(aiRoutes);
       apiRouter = router;
     } catch (err) {
       routesLoadError = err instanceof Error ? err : new Error(String(err));

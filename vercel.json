@@ -1,22 +1,15 @@
 {
-  "version": 2,
-  "builds": [
-    {
-      "src": "api/index.ts",
-      "use": "@vercel/node",
-      "config": {
-        "includeFiles": ["shared/**", "server/**"],
-        "maxDuration": 30
-      }
-    },
-    {
-      "src": "package.json",
-      "use": "@vercel/static-build",
-      "config": {
-        "distDir": "dist/public"
-      }
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": null,
+  "installCommand": "pnpm install",
+  "buildCommand": "pnpm run vercel-build",
+  "outputDirectory": "dist/public",
+  "functions": {
+    "api/index.ts": {
+      "maxDuration": 30,
+      "includeFiles": ["shared/**", "server/**"]
     }
-  ],
+  },
   "routes": [
     {
       "src": "/api/(.*)",
