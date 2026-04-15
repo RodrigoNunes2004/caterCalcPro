@@ -1679,6 +1679,19 @@ export const storage = {
     return result[0] || null;
   },
 
+  async getOrganizationBillingByStripeCustomerId(
+    stripeCustomerId: string
+  ): Promise<any | null> {
+    const customerId = String(stripeCustomerId || "").trim();
+    if (!customerId) return null;
+    const result = await db
+      .select()
+      .from(organizations)
+      .where(eq(organizations.stripeCustomerId, customerId))
+      .limit(1);
+    return result[0] || null;
+  },
+
   async updateOrganizationBillingById(
     organizationId: string,
     data: {

@@ -12,8 +12,12 @@ import {
   firstConfiguredPriceId,
   getStripePriceIdMap,
   inferPlanTierFromStripePriceId,
+  isStripePriceIdUnmappedInEnv,
 } from "../lib/stripePlanPrices.js";
-import { resolveOrganizationPlanTier } from "../middleware/plan.js";
+import {
+  normalizePlanTier,
+  resolveOrganizationPlanTier,
+} from "../middleware/plan.js";
 
 const router = Router();
 
@@ -284,6 +288,43 @@ router.get("/billing/status", authMiddleware, async (req: AuthRequest, res) => {
     if (!org) {
       return res.status(404).json({ error: "Organization not found" });
     }
+    // #region agent log
+    {
+      const resolved = resolveOrganizationPlanTier(org);
+      const baseOnly = normalizePlanTier(org.planTier, org.plan);
+      const fromStripe = inferPlanTierFromStripePriceId(
+        org.stripePriceId == null ? null : String(org.stripePriceId)
+      );
+      const priceTail =
+        org.stripePriceId == null
+          ? ""
+          : String(org.stripePriceId).slice(-8);
+      fetch("http://127.0.0.1:7520/ingest/529b7cc2-88c7-4df6-9032-42107fab9a7e", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Debug-Session-Id": "24a4ce",
+        },
+        body: JSON.stringify({
+          sessionId: "24a4ce",
+          runId: "pre-fix",
+          hypothesisId: "H1-H5",
+          location: "server/routes/billing.ts:GET /billing/status",
+          message: "Billing status resolved tiers",
+          data: {
+            organizationId,
+            resolved,
+            baseOnly,
+            fromStripe,
+            dbPlanTier: String(org.planTier ?? ""),
+            dbPlan: String(org.plan ?? ""),
+            stripePriceIdTail: priceTail,
+          },
+          timestamp: Date.now(),
+        }),
+      }).catch(() => {});
+    }
+    // #endregion
     return res.json({
       organizationId: org.id,
       plan: org.plan || "trial",
@@ -356,12 +397,29 @@ router.post("/billing/webhook", async (req, res) => {
         currentPeriodEndUnix > 0 ? new Date(currentPeriodEndUnix * 1000) : null;
       const mapped = mapStripeSubscriptionStatus(String(eventObject?.status || ""));
       const inferredTier = inferPlanTierFromStripePriceId(priceId);
-      const resolvedTier =
+      let resolvedTier =
         mapped.subscriptionStatus === "active" || mapped.subscriptionStatus === "trialing"
           ? inferredTier
           : "starter";
 
       if (customerId) {
+        const existing =
+          await storage.getOrganizationBillingByStripeCustomerId(customerId);
+        const activeOrTrialing =
+          mapped.subscriptionStatus === "active" ||
+          mapped.subscriptionStatus === "trialing";
+        if (
+          existing &&
+          activeOrTrialing &&
+          resolvedTier === "starter" &&
+          isStripePriceIdUnmappedInEnv(priceId)
+        ) {
+          const prior = normalizePlanTier(existing.planTier, existing.plan);
+          if (prior === "pro" || prior === "ai") {
+            resolvedTier = prior;
+          }
+        }
+
         await storage.updateOrganizationBillingByStripeCustomerId(customerId, {
           plan: getPlanFromTier(resolvedTier),
           planTier: resolvedTier,

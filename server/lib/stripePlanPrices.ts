@@ -42,3 +42,17 @@ export function inferPlanTierFromStripePriceId(
   if (envContainsPriceId(prices.starter, id)) return "starter";
   return "starter";
 }
+
+/** True if this price id is not listed on any tier env var (comma-separated lists count). */
+export function isStripePriceIdUnmappedInEnv(
+  priceId: string | null | undefined
+): boolean {
+  const id = String(priceId || "").trim();
+  if (!id) return false;
+  const prices = getStripePriceIdMap();
+  return (
+    !envContainsPriceId(prices.starter, id) &&
+    !envContainsPriceId(prices.pro, id) &&
+    !envContainsPriceId(prices.ai, id)
+  );
+}

@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
 import {
@@ -36,6 +37,33 @@ export function usePlanAccess() {
   const planTier = query.data
     ? normalizePlanTier(query.data.planTier, query.data.plan)
     : ("starter" as PlanTier);
+
+  // #region agent log
+  useEffect(() => {
+    if (!query.data) return;
+    fetch("http://127.0.0.1:7520/ingest/529b7cc2-88c7-4df6-9032-42107fab9a7e", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Debug-Session-Id": "24a4ce",
+      },
+      body: JSON.stringify({
+        sessionId: "24a4ce",
+        runId: "pre-fix",
+        hypothesisId: "H5",
+        location: "src/hooks/usePlanAccess.ts",
+        message: "Client plan from billing-status",
+        data: {
+          apiPlanTier: query.data.planTier ?? null,
+          apiPlan: query.data.plan ?? null,
+          normalizedPlanTier: planTier,
+          subscriptionStatus: query.data.subscriptionStatus ?? null,
+        },
+        timestamp: Date.now(),
+      }),
+    }).catch(() => {});
+  }, [query.data, planTier]);
+  // #endregion
 
   /** If billing status fails, do not block the UI as "starter" — APIs still enforce plan/subscription. */
   const canAccess = (required: PlanTier) => {
