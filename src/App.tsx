@@ -166,7 +166,9 @@ function App() {
                 <Route path="*" element={<NotFound />} />
               </Routes>
             </div>
-            <ReactQueryDevtools initialIsOpen={false} />
+            {import.meta.env.DEV ? (
+              <ReactQueryDevtools initialIsOpen={false} />
+            ) : null}
           </Router>
         </AuthProvider>
       </ThemeProvider>

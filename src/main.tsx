@@ -44,23 +44,6 @@ window.fetch = function (input: RequestInfo | URL, init?: RequestInit) {
                   ? `&requiredPlan=${encodeURIComponent(data.billing.requiredPlanTier)}`
                   : "";
                            const billingUrl = `/billing?from=${encodeURIComponent(from)}${requiredPlan}`;
-              // #region agent log
-              fetch("http://127.0.0.1:7242/ingest/529b7cc2-88c7-4df6-9032-42107fab9a7e", {
-                method: "POST",
-                headers: {
-                  "Content-Type": "application/json",
-                  "X-Debug-Session-Id": "9914c5",
-                },
-                body: JSON.stringify({
-                  sessionId: "9914c5",
-                  location: "main.tsx:billing-redirect",
-                  message: "full navigation to billing (402/403)",
-                  data: { billingUrl, fromPath: window.location.pathname },
-                  timestamp: Date.now(),
-                  hypothesisId: "H2",
-                }),
-              }).catch(() => {});
-              // #endregion
               window.location.assign(billingUrl);
             }
           } catch {
@@ -77,24 +60,6 @@ window.fetch = function (input: RequestInfo | URL, init?: RequestInit) {
   }
   return originalFetch.call(this, input, init);
 };
-
-// #region agent log
-fetch("http://127.0.0.1:7242/ingest/529b7cc2-88c7-4df6-9032-42107fab9a7e", {
-  method: "POST",
-  headers: {
-    "Content-Type": "application/json",
-    "X-Debug-Session-Id": "9914c5",
-  },
-  body: JSON.stringify({
-    sessionId: "9914c5",
-    location: "main.tsx:boot",
-    message: "SPA boot",
-    data: { pathname: window.location.pathname },
-    timestamp: Date.now(),
-    hypothesisId: "H1",
-  }),
-}).catch(() => {});
-// #endregion
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>

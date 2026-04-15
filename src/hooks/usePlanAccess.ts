@@ -28,11 +28,19 @@ export function usePlanAccess() {
     queryFn: fetchBillingStatus,
     enabled: !!user?.organizationId,
     staleTime: 60 * 1000,
+    retry: 2,
   });
 
-  const planTier = normalizePlanTier(query.data?.planTier, query.data?.plan);
+  const planTier = query.data
+    ? normalizePlanTier(query.data.planTier, query.data.plan)
+    : ("starter" as PlanTier);
 
-  const canAccess = (required: PlanTier) => hasPlanAccess(planTier, required);
+  /** If billing status fails, do not block the UI as "starter" — APIs still enforce plan/subscription. */
+  const canAccess = (required: PlanTier) => {
+    if (query.isError) return true;
+    if (!query.data) return false;
+    return hasPlanAccess(planTier, required);
+  };
 
   return {
     planTier,

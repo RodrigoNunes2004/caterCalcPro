@@ -10,7 +10,8 @@ const PLAN_RANK: Record<PlanTier, number> = {
   ai: 3,
 };
 
-function normalizePlanTier(raw: unknown, fallbackPlan?: unknown): PlanTier {
+/** Exported for billing API responses — same rules as plan gate. */
+export function normalizePlanTier(raw: unknown, fallbackPlan?: unknown): PlanTier {
   const tier = String(raw || "").toLowerCase();
   if (tier === "starter" || tier === "pro" || tier === "ai") return tier;
 

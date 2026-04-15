@@ -72,6 +72,9 @@ export default function BillingPage() {
     return normalizePlanTier(status?.planTier, status?.plan);
   }, [status?.planTier, status?.plan]);
 
+  const hasRequiredPlanAccess =
+    !requiredPlan || hasPlanAccess(currentPlanTier, requiredPlan);
+
   const loadStatus = async () => {
     try {
       setLoading(true);
@@ -270,9 +273,14 @@ export default function BillingPage() {
                   </div>
                 )}
 
-                {requiredPlan && !hasPlanAccess(currentPlanTier, requiredPlan) && (
+                {requiredPlan && !hasRequiredPlanAccess && (
                   <div className="rounded-md border border-blue-300 bg-blue-50 p-3 text-sm text-blue-900">
                     This area requires <strong>{requiredPlan}</strong> plan access or higher.
+                  </div>
+                )}
+                {requiredPlan && hasRequiredPlanAccess && (
+                  <div className="rounded-md border border-green-200 bg-green-50 p-3 text-sm text-green-900">
+                    Your current plan already includes this access. Use <strong>Back</strong> to return to the app.
                   </div>
                 )}
               </>
@@ -291,43 +299,47 @@ export default function BillingPage() {
             )}
 
             <div className="flex flex-col sm:flex-row flex-wrap gap-3">
-              <Button
-                id="plan-starter"
-                onClick={() => handleCheckout("starter")}
-                className="bg-orange-600 hover:bg-orange-700"
-                disabled={checkoutLoading || !config?.prices?.starter}
-              >
-                <CreditCard className="h-4 w-4 mr-2" />
-                {checkoutLoading ? "Redirecting..." : "Choose Starter"}
-              </Button>
-              <Button
-                id="plan-pro"
-                onClick={() => handleCheckout("pro")}
-                variant="outline"
-                disabled={checkoutLoading || !config?.prices?.pro}
-                className={
-                  highlightPlan === "pro"
-                    ? "ring-2 ring-orange-600 ring-offset-2"
-                    : undefined
-                }
-              >
-                <CreditCard className="h-4 w-4 mr-2" />
-                {checkoutLoading ? "Redirecting..." : "Choose Pro"}
-              </Button>
-              <Button
-                id="plan-ai"
-                onClick={() => handleCheckout("ai")}
-                variant="outline"
-                disabled={checkoutLoading || !config?.prices?.ai}
-                className={
-                  highlightPlan === "ai"
-                    ? "ring-2 ring-orange-600 ring-offset-2"
-                    : undefined
-                }
-              >
-                <CreditCard className="h-4 w-4 mr-2" />
-                {checkoutLoading ? "Redirecting..." : "Choose AI"}
-              </Button>
+              {!(requiredPlan && hasRequiredPlanAccess) && (
+                <>
+                  <Button
+                    id="plan-starter"
+                    onClick={() => handleCheckout("starter")}
+                    className="bg-orange-600 hover:bg-orange-700"
+                    disabled={checkoutLoading || !config?.prices?.starter}
+                  >
+                    <CreditCard className="h-4 w-4 mr-2" />
+                    {checkoutLoading ? "Redirecting..." : "Choose Starter"}
+                  </Button>
+                  <Button
+                    id="plan-pro"
+                    onClick={() => handleCheckout("pro")}
+                    variant="outline"
+                    disabled={checkoutLoading || !config?.prices?.pro}
+                    className={
+                      highlightPlan === "pro"
+                        ? "ring-2 ring-orange-600 ring-offset-2"
+                        : undefined
+                    }
+                  >
+                    <CreditCard className="h-4 w-4 mr-2" />
+                    {checkoutLoading ? "Redirecting..." : "Choose Pro"}
+                  </Button>
+                  <Button
+                    id="plan-ai"
+                    onClick={() => handleCheckout("ai")}
+                    variant="outline"
+                    disabled={checkoutLoading || !config?.prices?.ai}
+                    className={
+                      highlightPlan === "ai"
+                        ? "ring-2 ring-orange-600 ring-offset-2"
+                        : undefined
+                    }
+                  >
+                    <CreditCard className="h-4 w-4 mr-2" />
+                    {checkoutLoading ? "Redirecting..." : "Choose AI"}
+                  </Button>
+                </>
+              )}
               <Button variant="outline" onClick={() => navigate("/")}>
                 Go to Home
               </Button>

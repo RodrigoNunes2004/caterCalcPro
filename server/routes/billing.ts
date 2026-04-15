@@ -7,6 +7,7 @@ import {
   type AuthRequest,
 } from "../middleware/auth.js";
 import { verifyToken } from "../lib/auth.js";
+import { normalizePlanTier } from "../middleware/plan.js";
 
 const router = Router();
 
@@ -291,7 +292,7 @@ router.get("/billing/status", authMiddleware, async (req: AuthRequest, res) => {
     return res.json({
       organizationId: org.id,
       plan: org.plan || "trial",
-      planTier: org.planTier || (org.plan === "pro" ? "pro" : "starter"),
+      planTier: normalizePlanTier(org.planTier, org.plan),
       subscriptionStatus: org.subscriptionStatus || "trialing",
       trialEndsAt: org.trialEndsAt || null,
       stripeCustomerId: org.stripeCustomerId || null,
