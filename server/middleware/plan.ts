@@ -3,6 +3,7 @@ import {
   inferPlanTierFromStripePriceId,
   isStripePriceIdUnmappedInEnv,
 } from "../lib/stripePlanPrices.js";
+import { organizationHasBillingApiAccess } from "../lib/subscriptionAccess.js";
 import { storage } from "../storage.js";
 import type { AuthRequest } from "./auth.js";
 
@@ -44,6 +45,7 @@ export function resolveOrganizationPlanTier(org: {
   stripePriceId?: unknown;
   subscriptionStatus?: unknown;
   stripeSubscriptionId?: unknown;
+  stripeCustomerId?: unknown;
 }): PlanTier {
   const base = normalizePlanTier(org.planTier, org.plan);
   const fromStripe = inferPlanTierFromStripePriceId(
@@ -52,17 +54,19 @@ export function resolveOrganizationPlanTier(org: {
   let merged: PlanTier =
     PLAN_RANK[fromStripe] > PLAN_RANK[base] ? fromStripe : base;
 
-  const status = String(org.subscriptionStatus ?? "").toLowerCase();
   const hasStripeSubscription = Boolean(
     String(org.stripeSubscriptionId ?? "").trim()
   );
+  const hasStripeCustomer = Boolean(
+    String(org.stripeCustomerId ?? "").trim()
+  );
   const priceId =
     org.stripePriceId == null ? "" : String(org.stripePriceId).trim();
-  // Paid Stripe subscription but price id missing from STRIPE_PRICE_ID_* env → infer "starter" and
-  // block Pro features; treat as Pro when a subscription exists (list all tier price ids in env to avoid this).
+  // Price id not in STRIPE_PRICE_ID_* env → infer "starter". If billing access already passes
+  // (incl. cancelled-but-paid-period) but tier stayed starter, align with Pro so gates match billing.
   if (
-    hasStripeSubscription &&
-    (status === "active" || status === "trialing") &&
+    organizationHasBillingApiAccess(org) &&
+    (hasStripeSubscription || hasStripeCustomer) &&
     merged === "starter" &&
     priceId &&
     isStripePriceIdUnmappedInEnv(priceId)

@@ -1,17 +1,7 @@
 import { type Response, type NextFunction } from "express";
+import { organizationHasBillingApiAccess } from "../lib/subscriptionAccess.js";
 import { storage } from "../storage.js";
 import type { AuthRequest } from "./auth.js";
-
-function toDate(value: unknown): Date | null {
-  if (!value) return null;
-  const dt = value instanceof Date ? value : new Date(String(value));
-  return Number.isNaN(dt.getTime()) ? null : dt;
-}
-
-function isFutureDate(value: unknown): boolean {
-  const dt = toDate(value);
-  return !!dt && dt.getTime() > Date.now();
-}
 
 export async function requireBillingAccess(
   req: AuthRequest,
@@ -33,16 +23,7 @@ export async function requireBillingAccess(
       return res.status(404).json({ error: "Organization not found" });
     }
 
-    const status = String(org.subscriptionStatus || "trialing").toLowerCase();
-    const trialValid = isFutureDate(org.trialEndsAt);
-    const subscriptionStillValid = isFutureDate(org.subscriptionCurrentPeriodEnd);
-
-    const hasAccess =
-      status === "active" ||
-      (status === "trialing" && trialValid) ||
-      ((status === "cancelled" || status === "canceled") && subscriptionStillValid);
-
-    if (hasAccess) {
+    if (organizationHasBillingApiAccess(org)) {
       return next();
     }
 
