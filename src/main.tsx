@@ -20,6 +20,7 @@ window.fetch = function (input: RequestInfo | URL, init?: RequestInit) {
         const shouldHandleBilling =
           pathOnly !== "/api/billing/status" &&
           pathOnly !== "/api/billing/create-checkout-session" &&
+          pathOnly !== "/api/billing/sync-checkout-session" &&
           pathOnly !== "/api/billing/config" &&
           pathOnly !== "/api/billing/webhook";
 

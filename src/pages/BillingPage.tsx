@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { CreditCard, RefreshCcw, ArrowLeft, CheckCircle2, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -47,6 +47,8 @@ export default function BillingPage() {
   const [loading, setLoading] = useState(true);
   const [checkoutLoading, setCheckoutLoading] = useState(false);
   const [error, setError] = useState<string>("");
+  const [syncMessage, setSyncMessage] = useState<string>("");
+  const syncedSessionRef = useRef<string | null>(null);
 
   const fromPath = useMemo(() => {
     const params = new URLSearchParams(location.search);
@@ -56,6 +58,12 @@ export default function BillingPage() {
   const requiredPlan = useMemo<PlanTier | null>(() => {
     const params = new URLSearchParams(location.search);
     const raw = params.get("requiredPlan");
+    if (!raw) return null;
+    return normalizePlanTier(raw);
+  }, [location.search]);
+
+  const highlightPlan = useMemo<PlanTier | null>(() => {
+    const raw = new URLSearchParams(location.search).get("highlight");
     if (!raw) return null;
     return normalizePlanTier(raw);
   }, [location.search]);
@@ -84,6 +92,49 @@ export default function BillingPage() {
   useEffect(() => {
     loadStatus();
   }, []);
+
+  useEffect(() => {
+    if (!highlightPlan) return;
+    const id = highlightPlan === "starter" ? "plan-starter" : `plan-${highlightPlan}`;
+    requestAnimationFrame(() => {
+      document.getElementById(id)?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    });
+  }, [highlightPlan]);
+
+  /** After Stripe redirect, webhooks often miss localhost — sync session from Stripe API. */
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const billingOk = params.get("billing") === "success";
+    const sessionId = params.get("session_id")?.trim();
+    if (!billingOk || !sessionId) return;
+    if (syncedSessionRef.current === sessionId) return;
+    syncedSessionRef.current = sessionId;
+
+    (async () => {
+      try {
+        setSyncMessage("Updating your plan from checkout…");
+        const response = await fetch("/api/billing/sync-checkout-session", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ sessionId }),
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          setSyncMessage(
+            typeof data?.message === "string"
+              ? data.message
+              : "Could not confirm checkout. Use Refresh or contact support if your plan looks wrong."
+          );
+          return;
+        }
+        setSyncMessage("Plan updated from checkout.");
+        await loadStatus();
+        navigate("/billing", { replace: true });
+      } catch {
+        setSyncMessage("Could not confirm checkout. Try Refresh.");
+      }
+    })();
+  }, [location.search, navigate]);
 
   useEffect(() => {
     (async () => {
@@ -119,7 +170,7 @@ export default function BillingPage() {
         body: JSON.stringify({
           email: user?.email || undefined,
           planTier,
-          successUrl: `${baseUrl}/billing?billing=success`,
+          successUrl: `${baseUrl}/billing?billing=success&session_id={CHECKOUT_SESSION_ID}`,
           cancelUrl: `${baseUrl}/billing?billing=cancelled`,
         }),
       });
@@ -233,8 +284,15 @@ export default function BillingPage() {
               </div>
             )}
 
-            <div className="flex flex-col sm:flex-row gap-3">
+            {syncMessage && (
+              <div className="rounded-md border border-blue-200 bg-blue-50 p-3 text-sm text-blue-900">
+                {syncMessage}
+              </div>
+            )}
+
+            <div className="flex flex-col sm:flex-row flex-wrap gap-3">
               <Button
+                id="plan-starter"
                 onClick={() => handleCheckout("starter")}
                 className="bg-orange-600 hover:bg-orange-700"
                 disabled={checkoutLoading || !config?.prices?.starter}
@@ -243,17 +301,29 @@ export default function BillingPage() {
                 {checkoutLoading ? "Redirecting..." : "Choose Starter"}
               </Button>
               <Button
+                id="plan-pro"
                 onClick={() => handleCheckout("pro")}
                 variant="outline"
                 disabled={checkoutLoading || !config?.prices?.pro}
+                className={
+                  highlightPlan === "pro"
+                    ? "ring-2 ring-orange-600 ring-offset-2"
+                    : undefined
+                }
               >
                 <CreditCard className="h-4 w-4 mr-2" />
                 {checkoutLoading ? "Redirecting..." : "Choose Pro"}
               </Button>
               <Button
+                id="plan-ai"
                 onClick={() => handleCheckout("ai")}
                 variant="outline"
                 disabled={checkoutLoading || !config?.prices?.ai}
+                className={
+                  highlightPlan === "ai"
+                    ? "ring-2 ring-orange-600 ring-offset-2"
+                    : undefined
+                }
               >
                 <CreditCard className="h-4 w-4 mr-2" />
                 {checkoutLoading ? "Redirecting..." : "Choose AI"}

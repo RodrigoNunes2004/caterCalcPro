@@ -1,7 +1,11 @@
 import { Router, type Request } from "express";
 import Stripe from "stripe";
 import { storage } from "../storage.js";
-import { authMiddleware, type AuthRequest } from "../middleware/auth.js";
+import {
+  authMiddleware,
+  optionalAuthMiddleware,
+  type AuthRequest,
+} from "../middleware/auth.js";
 import { verifyToken } from "../lib/auth.js";
 
 const router = Router();
@@ -110,13 +114,84 @@ function getAuthOrganizationId(req: Request): string | null {
   return payload?.organizationId || null;
 }
 
+/**
+ * Persists plan and Stripe ids from a completed Checkout Session.
+ * Used by Stripe webhooks and by POST /billing/sync-checkout-session (localhost / when webhooks are delayed).
+ */
+async function applyCheckoutSessionToOrganization(
+  session: Stripe.Checkout.Session,
+  organizationId: string
+): Promise<void> {
+  const metaOrg =
+    String(session.metadata?.organizationId || "").trim() ||
+    String(session.client_reference_id || "").trim();
+  if (!metaOrg || metaOrg !== organizationId) {
+    throw new Error("Checkout session does not match organization");
+  }
+
+  const status = String(session.status || "");
+  if (status !== "complete") {
+    throw new Error("Checkout session is not complete");
+  }
+
+  const customerRaw = session.customer;
+  const customerId =
+    typeof customerRaw === "string"
+      ? customerRaw
+      : customerRaw &&
+          typeof customerRaw === "object" &&
+          !Array.isArray(customerRaw)
+        ? (customerRaw as Stripe.Customer).id
+        : null;
+
+  const subRaw = session.subscription;
+  const subscriptionId =
+    typeof subRaw === "string"
+      ? subRaw
+      : subRaw && typeof subRaw === "object" && !Array.isArray(subRaw)
+        ? (subRaw as Stripe.Subscription).id
+        : null;
+
+  let priceId = String(session.metadata?.priceId || "").trim() || null;
+  if (!priceId && session.line_items && typeof session.line_items === "object") {
+    const items = session.line_items as Stripe.ApiList<Stripe.LineItem>;
+    const first = items.data?.[0];
+    const p = first?.price;
+    priceId = typeof p === "string" ? p : p?.id || null;
+  }
+
+  const sessionPlanTier = normalizeTier(
+    session.metadata?.planTier || inferPlanTierFromStripePriceId(priceId)
+  );
+
+  const billingEmail =
+    String(
+      session.customer_details?.email ||
+        (session as { customer_email?: string | null }).customer_email ||
+        ""
+    ).trim() || null;
+
+  await storage.updateOrganizationBillingById(organizationId, {
+    plan: getPlanFromTier(sessionPlanTier),
+    planTier: sessionPlanTier,
+    subscriptionStatus: "active",
+    stripeCustomerId: customerId,
+    stripeSubscriptionId: subscriptionId,
+    stripePriceId: priceId,
+    billingEmail,
+  });
+}
+
 router.get("/billing/config", (_req, res) => {
   const prices = getPriceMap();
   res.json({
     enabled: Boolean(
       process.env.STRIPE_SECRET_KEY && (prices.starter || prices.pro || prices.ai)
     ),
-    publishableKey: process.env.STRIPE_PUBLISHABLE_KEY || null,
+    publishableKey:
+      process.env.STRIPE_PUBLISHABLE_KEY ||
+      process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY ||
+      null,
     defaultPriceId: prices.starter || prices.pro || prices.ai || null,
     prices: {
       starter: prices.starter || null,
@@ -126,7 +201,10 @@ router.get("/billing/config", (_req, res) => {
   });
 });
 
-router.post("/billing/create-checkout-session", async (req, res) => {
+router.post(
+  "/billing/create-checkout-session",
+  optionalAuthMiddleware,
+  async (req: AuthRequest, res) => {
   try {
     const stripe = getStripeClient();
     const baseUrl = getBaseUrl(req);
@@ -134,7 +212,8 @@ router.post("/billing/create-checkout-session", async (req, res) => {
     const target = resolveCheckoutTarget(body);
     const priceId = String(target.priceId || "").trim();
     const email = String(body.email || "").trim();
-    const organizationId = getAuthOrganizationId(req);
+    const organizationId =
+      req.auth?.organizationId || getAuthOrganizationId(req) || undefined;
 
     if (!priceId) {
       return res
@@ -172,6 +251,32 @@ router.post("/billing/create-checkout-session", async (req, res) => {
     return res.status(500).json({
       error: "Failed to create checkout session",
       message: error instanceof Error ? error.message : "Unknown error",
+    });
+  }
+});
+
+router.post("/billing/sync-checkout-session", authMiddleware, async (req: AuthRequest, res) => {
+  try {
+    const organizationId = req.auth!.organizationId;
+    const sessionId = String((req.body || {}).sessionId || "").trim();
+    if (!sessionId) {
+      return res.status(400).json({ error: "Missing sessionId" });
+    }
+    const stripe = getStripeClient();
+    const session = await stripe.checkout.sessions.retrieve(sessionId, {
+      expand: ["line_items", "subscription"],
+    });
+    await applyCheckoutSessionToOrganization(session, organizationId);
+    return res.json({ ok: true });
+  } catch (error) {
+    console.error("sync-checkout-session:", error);
+    const message = error instanceof Error ? error.message : "Sync failed";
+    if (message.includes("does not match")) {
+      return res.status(403).json({ error: message });
+    }
+    return res.status(500).json({
+      error: "Failed to sync checkout session",
+      message,
     });
   }
 });
@@ -228,29 +333,16 @@ router.post("/billing/webhook", async (req, res) => {
     }
 
     if (eventType === "checkout.session.completed") {
+      const session = eventObject as Stripe.Checkout.Session;
       const metadataOrgId =
-        String(eventObject?.metadata?.organizationId || "").trim() ||
-        String(eventObject?.client_reference_id || "").trim();
-      const customerId = String(eventObject?.customer || "").trim() || null;
-      const subscriptionId = String(eventObject?.subscription || "").trim() || null;
-      const billingEmail = String(
-        eventObject?.customer_details?.email || eventObject?.customer_email || ""
-      ).trim() || null;
-
+        String(session?.metadata?.organizationId || "").trim() ||
+        String(session?.client_reference_id || "").trim();
       if (metadataOrgId) {
-        const sessionPriceId = String(eventObject?.metadata?.priceId || "").trim() || null;
-        const sessionPlanTier = normalizeTier(
-          eventObject?.metadata?.planTier || inferPlanTierFromStripePriceId(sessionPriceId)
-        );
-        await storage.updateOrganizationBillingById(metadataOrgId, {
-          plan: getPlanFromTier(sessionPlanTier),
-          planTier: sessionPlanTier,
-          subscriptionStatus: "active",
-          stripeCustomerId: customerId,
-          stripeSubscriptionId: subscriptionId,
-          stripePriceId: sessionPriceId,
-          billingEmail,
-        });
+        try {
+          await applyCheckoutSessionToOrganization(session, metadataOrgId);
+        } catch (e) {
+          console.error("checkout.session.completed apply failed:", e);
+        }
       }
     }
 

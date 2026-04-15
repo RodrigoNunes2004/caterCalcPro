@@ -48,32 +48,32 @@ interface Feature {
 const features: Feature[] = [
   {
     icon: <Calculator className="h-6 w-6" />,
-    title: "Starter Plan - Core Tools",
+    title: "Starter — Core operations",
     description:
-      "Calculate recipe costs, scale ingredients for event size, and run day-to-day catering operations in one place.",
+      "Day-to-day catering workflows: recipes, menus, events, prep lists, shopping lists, inventory, and costing.",
     benefit:
-      "Includes recipe scaling, event costing, prep lists, shopping lists, and recipe/menu/event organization.",
+      "Best for teams that need reliable scaling, costing, and kitchen workflows without advanced analytics.",
     availability: "Available now",
     availabilityClassName: "bg-green-100 text-green-800",
   },
   {
     icon: <DollarSign className="h-6 w-6" />,
-    title: "Pro Plan - Advanced Insights",
+    title: "Pro — Advanced business insights",
     description:
-      "Designed for growing teams that want deeper visibility into costs, margins, and performance trends.",
+      "Analytics dashboard with profit and cost trends, snapshot-based event performance, and inventory movement—built from your historical data.",
     benefit:
-      "Planned: real-time analytics dashboard, profit margin reports, GST breakdowns, and priority support.",
-    availability: "Coming soon",
-    availabilityClassName: "bg-amber-100 text-amber-800",
+      "Margin calculations from event snapshots, trend charts, top-cost views, and GST summaries (inventory + snapshot targets) on Analytics—with CSV and PDF export. Forecasting remains on the roadmap—not tax advice.",
+    availability: "Subscribe",
+    availabilityClassName: "bg-emerald-100 text-emerald-900",
   },
   {
     icon: <Zap className="h-6 w-6" />,
-    title: "AI Plan - Premium Automation",
+    title: "AI — Automation (evolving)",
     description:
-      "AI-assisted recipe and menu creation to speed up planning while keeping costing workflows consistent.",
+      "AI-assisted recipe drafts and (roadmap) menu ideas, with costs computed through the same engine as the rest of the app.",
     benefit:
-      "Planned: AI recipe generation, AI menu suggestions, auto-scaled ingredient quantities, and cost/margin estimates.",
-    availability: "Future plan",
+      "Recipe generation is improving toward full LLM-backed flows; menu suggestions and smarter scaling are planned. Priority email support is a service commitment, not an in-app ticket system.",
+    availability: "Roadmap",
     availabilityClassName: "bg-purple-100 text-purple-800",
   },
 ];
@@ -158,7 +158,7 @@ export default function LandingPage() {
         },
         body: JSON.stringify({
           planTier: selectedPlanTier,
-          successUrl: `${baseUrl}/${user ? "billing" : "register"}?billing=success`,
+          successUrl: `${baseUrl}/${user ? "billing" : "register"}?billing=success&session_id={CHECKOUT_SESSION_ID}`,
           cancelUrl: `${baseUrl}/?billing=cancelled`,
         }),
       });
@@ -445,8 +445,7 @@ export default function LandingPage() {
               Plans Built for Catering Teams
             </h2>
             <p className="text-xl text-gray-600 max-w-3xl mx-auto">
-              Clear feature tiers help you choose what fits today while showing
-              what is coming next.
+              Honest tiers: Starter for operations, Pro for analytics and insights, AI for automation as it matures.
             </p>
           </div>
 
@@ -566,8 +565,7 @@ export default function LandingPage() {
               Simple, Transparent Pricing
             </h2>
             <p className="text-xl text-gray-600">
-              Start with Starter now, then upgrade as advanced analytics and AI
-              features roll out.
+              Start on Starter, upgrade to Pro for analytics, and move to AI when you want automation features as they land.
             </p>
           </div>
 
@@ -602,20 +600,32 @@ export default function LandingPage() {
                 <div className="text-4xl font-bold mt-2">
                   $79<span className="text-lg font-normal">/month</span>
                 </div>
-                <p className="text-sm text-amber-700 mt-1">Coming soon</p>
+                <p className="text-sm text-emerald-800 mt-1">Advanced business insights</p>
               </CardHeader>
               <CardContent className="space-y-3">
-                <div className="flex items-center space-x-2">
-                  <BarChart3 className="h-4 w-4 text-orange-600" />
-                  <span className="text-sm">Real-time cost analytics dashboard</span>
+                <div className="flex items-start space-x-2">
+                  <BarChart3 className="h-4 w-4 text-orange-600 shrink-0 mt-0.5" />
+                  <span className="text-sm">Analytics dashboard with profit and cost trends</span>
                 </div>
-                <div className="flex items-center space-x-2">
-                  <Calculator className="h-4 w-4 text-orange-600" />
-                  <span className="text-sm">Margin reports and GST breakdowns</span>
+                <div className="flex items-start space-x-2">
+                  <Calendar className="h-4 w-4 text-orange-600 shrink-0 mt-0.5" />
+                  <span className="text-sm">Event performance from snapshots and historical data</span>
                 </div>
-                <div className="flex items-center space-x-2">
-                  <Shield className="h-4 w-4 text-orange-600" />
-                  <span className="text-sm">Priority email support</span>
+                <div className="flex items-start space-x-2">
+                  <Calculator className="h-4 w-4 text-orange-600 shrink-0 mt-0.5" />
+                  <span className="text-sm">Margin calculations from snapshot history</span>
+                </div>
+                <div className="flex items-start space-x-2">
+                  <Package className="h-4 w-4 text-orange-600 shrink-0 mt-0.5" />
+                  <span className="text-sm">Inventory movement tracking</span>
+                </div>
+                <div className="flex items-start space-x-2">
+                  <CheckCircle className="h-4 w-4 text-orange-600 shrink-0 mt-0.5" />
+                  <span className="text-sm">GST reporting with CSV & PDF export</span>
+                </div>
+                <div className="flex items-start space-x-2">
+                  <Shield className="h-4 w-4 text-orange-600 shrink-0 mt-0.5" />
+                  <span className="text-sm">Priority access to new analytics features</span>
                 </div>
               </CardContent>
             </Card>
@@ -626,20 +636,20 @@ export default function LandingPage() {
                 <div className="text-4xl font-bold mt-2">
                   $99<span className="text-lg font-normal">/month</span>
                 </div>
-                <p className="text-sm text-purple-700 mt-1">Future plan</p>
+                <p className="text-sm text-purple-700 mt-1">Automation (evolving)</p>
               </CardHeader>
               <CardContent className="space-y-3">
-                <div className="flex items-center space-x-2">
-                  <Zap className="h-4 w-4 text-purple-600" />
-                  <span className="text-sm">AI recipe generation</span>
+                <div className="flex items-start space-x-2">
+                  <Zap className="h-4 w-4 text-purple-600 shrink-0 mt-0.5" />
+                  <span className="text-sm">AI-assisted recipe drafts (improving)</span>
                 </div>
-                <div className="flex items-center space-x-2">
-                  <Zap className="h-4 w-4 text-purple-600" />
-                  <span className="text-sm">AI menu suggestions</span>
+                <div className="flex items-start space-x-2">
+                  <Zap className="h-4 w-4 text-purple-600 shrink-0 mt-0.5" />
+                  <span className="text-sm">Menu suggestions (roadmap)</span>
                 </div>
-                <div className="flex items-center space-x-2">
-                  <Zap className="h-4 w-4 text-purple-600" />
-                  <span className="text-sm">Suggested cost and margin estimates</span>
+                <div className="flex items-start space-x-2">
+                  <Zap className="h-4 w-4 text-purple-600 shrink-0 mt-0.5" />
+                  <span className="text-sm">Costs and margins via the same pricing engine</span>
                 </div>
               </CardContent>
             </Card>
@@ -651,7 +661,7 @@ export default function LandingPage() {
               <span className="font-semibold">30-Day Free Trial on Starter</span>
             </div>
             <p className="text-sm text-green-700 mt-1 text-center">
-              Upgrade anytime as Pro and AI features become available.
+              Upgrade to Pro for analytics; AI adds automation as features mature.
             </p>
           </div>
 

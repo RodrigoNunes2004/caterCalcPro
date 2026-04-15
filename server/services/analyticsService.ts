@@ -1,4 +1,4 @@
-import { and, desc, eq, gte } from "drizzle-orm";
+import { and, desc, eq, gte, lte } from "drizzle-orm";
 import {
   eventSnapshots,
   events,
@@ -6,24 +6,30 @@ import {
   recipes,
 } from "../../shared/schema.js";
 import { db } from "../storage.js";
+import type { ResolvedAnalyticsDateRange } from "./analyticsDateRange.js";
 
 function toNumber(value: unknown): number {
   return Number(value ?? 0) || 0;
 }
 
-export async function getAnalyticsOverview(organizationId: string) {
-  const ninetyDaysAgo = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000);
+function snapshotDateConditions(organizationId: string, range: ResolvedAnalyticsDateRange) {
+  const parts = [
+    eq(eventSnapshots.organizationId, organizationId),
+    gte(eventSnapshots.createdAt, range.start),
+    lte(eventSnapshots.createdAt, range.end),
+  ];
+  return and(...parts);
+}
 
+export async function getAnalyticsOverview(
+  organizationId: string,
+  range: ResolvedAnalyticsDateRange
+) {
   const [snapshots, inventoryTx, topEvents] = await Promise.all([
     db
       .select()
       .from(eventSnapshots)
-      .where(
-        and(
-          eq(eventSnapshots.organizationId, organizationId),
-          gte(eventSnapshots.createdAt, ninetyDaysAgo)
-        )
-      )
+      .where(snapshotDateConditions(organizationId, range))
       .orderBy(desc(eventSnapshots.createdAt)),
     db
       .select()
@@ -31,7 +37,8 @@ export async function getAnalyticsOverview(organizationId: string) {
       .where(
         and(
           eq(inventoryTransactions.organizationId, organizationId),
-          gte(inventoryTransactions.createdAt, ninetyDaysAgo)
+          gte(inventoryTransactions.createdAt, range.start),
+          lte(inventoryTransactions.createdAt, range.end)
         )
       )
       .orderBy(desc(inventoryTransactions.createdAt)),
@@ -43,7 +50,7 @@ export async function getAnalyticsOverview(organizationId: string) {
       })
       .from(eventSnapshots)
       .innerJoin(events, eq(events.id, eventSnapshots.eventId))
-      .where(eq(eventSnapshots.organizationId, organizationId))
+      .where(snapshotDateConditions(organizationId, range))
       .orderBy(desc(eventSnapshots.totalCost))
       .limit(5),
   ]);
@@ -69,16 +76,20 @@ export async function getAnalyticsOverview(organizationId: string) {
       eventName: String(e.eventName || "Event"),
       totalCost: Math.round(toNumber(e.totalCost) * 100) / 100,
     })),
+    dateRange: {
+      start: range.start.toISOString(),
+      end: range.end.toISOString(),
+    },
   };
 }
 
-export async function getCostTrends(organizationId: string) {
+export async function getCostTrends(organizationId: string, range: ResolvedAnalyticsDateRange) {
   const snapshots = await db
     .select()
     .from(eventSnapshots)
-    .where(eq(eventSnapshots.organizationId, organizationId))
+    .where(snapshotDateConditions(organizationId, range))
     .orderBy(desc(eventSnapshots.createdAt))
-    .limit(24);
+    .limit(200);
 
   return snapshots.map((s) => ({
     id: s.id,
@@ -92,7 +103,7 @@ export async function getCostTrends(organizationId: string) {
   }));
 }
 
-export async function getTopCostRecipes(organizationId: string) {
+export async function getTopCostRecipes(organizationId: string, range: ResolvedAnalyticsDateRange) {
   const recipeRows = await db
     .select({
       id: recipes.id,
@@ -100,7 +111,13 @@ export async function getTopCostRecipes(organizationId: string) {
       createdAt: recipes.createdAt,
     })
     .from(recipes)
-    .where(eq(recipes.organizationId, organizationId))
+    .where(
+      and(
+        eq(recipes.organizationId, organizationId),
+        gte(recipes.createdAt, range.start),
+        lte(recipes.createdAt, range.end)
+      )
+    )
     .orderBy(desc(recipes.createdAt))
     .limit(10);
 
