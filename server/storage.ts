@@ -33,9 +33,15 @@ import {
   type MenuWithRecipes,
 } from "../shared/schema.js";
 
-// PGLite is only loaded in development - avoids serverless crash (WASM/filesystem)
+// PGLite is only for local dev without DATABASE_URL — never on Vercel / production.
 let pgliteClient: import("@electric-sql/pglite").PGlite | null = null;
 let db: ReturnType<typeof drizzle>;
+
+if (!process.env.DATABASE_URL && process.env.NODE_ENV === "production") {
+  throw new Error(
+    "DATABASE_URL is required in production. In Vercel: Project → Settings → Environment Variables → add DATABASE_URL (Neon or Postgres connection string)."
+  );
+}
 
 if (process.env.DATABASE_URL) {
   const sql = neon(process.env.DATABASE_URL);
