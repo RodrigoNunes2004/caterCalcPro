@@ -1,6 +1,6 @@
 import { Router, type Request, type Response } from "express";
 import { createOrganizationAndOwner, findUserByEmail } from "../lib/authStorage.js";
-import { verifyPassword, signToken, verifyToken } from "../lib/auth.js";
+import { verifyPassword, signToken, resolveAuthPayload } from "../lib/auth.js";
 
 const router = Router();
 
@@ -99,10 +99,11 @@ router.post("/auth/login", async (req: Request, res: Response) => {
 
 router.get("/auth/me", (req: Request, res: Response) => {
   try {
-    const authHeader = req.headers.authorization;
     const cookies = req.cookies || {};
-    const token = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : cookies.token;
-    const payload = token ? verifyToken(token) : null;
+    const payload = resolveAuthPayload({
+      authorization: req.headers.authorization,
+      cookieToken: cookies.token,
+    });
     if (!payload) {
       res.status(401).json({ error: "Unauthorized" });
       return;

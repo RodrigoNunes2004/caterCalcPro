@@ -6,7 +6,7 @@ import {
   optionalAuthMiddleware,
   type AuthRequest,
 } from "../middleware/auth.js";
-import { verifyToken } from "../lib/auth.js";
+import { resolveAuthPayload } from "../lib/auth.js";
 import { normalizePlanTier } from "../middleware/plan.js";
 
 const router = Router();
@@ -106,12 +106,10 @@ function mapStripeSubscriptionStatus(status: string): {
 }
 
 function getAuthOrganizationId(req: Request): string | null {
-  const authHeader = req.headers.authorization;
-  const token =
-    authHeader?.startsWith("Bearer ")
-      ? authHeader.slice(7)
-      : (req as any).cookies?.token;
-  const payload = token ? verifyToken(token) : null;
+  const payload = resolveAuthPayload({
+    authorization: req.headers.authorization,
+    cookieToken: (req as { cookies?: { token?: string } }).cookies?.token,
+  });
   return payload?.organizationId || null;
 }
 

@@ -38,3 +38,24 @@ export function verifyToken(token: string): JWTPayload | null {
     return null;
   }
 }
+
+/**
+ * Use Bearer when valid; if a Bearer is sent but expired/invalid (stale localStorage), fall back to the
+ * httpOnly `token` cookie so API routes match `fetch(..., { credentials: "include" })` behavior.
+ */
+export function resolveAuthPayload(input: {
+  authorization?: string;
+  cookieToken?: unknown;
+}): JWTPayload | null {
+  const authHeader = input.authorization;
+  const cookieTok = input.cookieToken;
+
+  if (authHeader?.startsWith("Bearer ")) {
+    const fromBearer = verifyToken(authHeader.slice(7));
+    if (fromBearer) return fromBearer;
+  }
+  if (cookieTok) {
+    return verifyToken(String(cookieTok));
+  }
+  return null;
+}
