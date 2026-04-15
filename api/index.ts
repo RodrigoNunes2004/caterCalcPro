@@ -33,14 +33,16 @@ app.get("/api/debug", (_req, res) => {
   });
 });
 
-// Lazy-load routes; use Router so the first request also gets handled
-let apiRouter: Router | null = null;
-let routesLoadError: Error | null = null;
+/**
+ * Express 4 does not await async route handlers. The previous `async (req,res,next) => { await import(...) }`
+ * yielded at the first await, so the stack continued to static + `*` and returned 404 for every /api/* path
+ * on cold start. Load the router once via an explicit Promise chain instead.
+ */
+let apiRouterPromise: Promise<Router> | null = null;
 
-app.use("/api", async (req, res, next) => {
-  if (req.path === "/debug" || req.path === "debug") return next();
-  if (!apiRouter && !routesLoadError) {
-    try {
+function getApiRouter(): Promise<Router> {
+  if (!apiRouterPromise) {
+    apiRouterPromise = (async () => {
       const { initStorage } = await import("../server/storage.js");
       await initStorage();
       const { default: healthRoutes } = await import("../server/routes/health.js");
@@ -79,22 +81,25 @@ app.use("/api", async (req, res, next) => {
         console.error("AI routes failed to load:", aiErr);
       }
 
-      apiRouter = router;
-    } catch (err) {
-      routesLoadError = err instanceof Error ? err : new Error(String(err));
-      console.error("Routes load failed:", routesLoadError);
-    }
+      return router;
+    })();
   }
-  if (routesLoadError) {
-    return res.status(503).json({
-      error: "Service temporarily unavailable",
-      message: routesLoadError.message,
+  return apiRouterPromise;
+}
+
+app.use("/api", (req, res, next) => {
+  if (req.path === "/debug" || req.path === "debug") return next();
+  getApiRouter()
+    .then((router) => router(req, res, next))
+    .catch((err) => {
+      console.error("API router load failed:", err);
+      if (!res.headersSent) {
+        res.status(503).json({
+          error: "Service temporarily unavailable",
+          message: err instanceof Error ? err.message : String(err),
+        });
+      }
     });
-  }
-  if (apiRouter) {
-    return apiRouter(req, res, next);
-  }
-  next();
 });
 
 // Static + catch-all
