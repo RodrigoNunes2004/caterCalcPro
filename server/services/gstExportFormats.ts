@@ -1,4 +1,4 @@
-import PDFDocument from "pdfkit";
+import type PDFDocument from "pdfkit";
 import type { EventSnapshotsGstSummary, GstSummaryPayload } from "./gstReportingService.js";
 
 function formatSnapshotPeriodLine(ev: EventSnapshotsGstSummary): string {
@@ -100,9 +100,12 @@ export function buildGstSummaryCsv(payload: GstSummaryPayload): string {
   return lines.join("\r\n");
 }
 
-export function buildGstSummaryPdf(payload: GstSummaryPayload): Promise<Buffer> {
+/** Runtime `import("pdfkit")` only — avoids loading pdfkit during Vercel cold start for unrelated routes. */
+export async function buildGstSummaryPdf(payload: GstSummaryPayload): Promise<Buffer> {
+  const mod = await import("pdfkit");
+  const PDF = mod.default as typeof PDFDocument;
   return new Promise((resolve, reject) => {
-    const doc = new PDFDocument({ margin: 48, size: "A4", info: { Title: "GST summary (NZ)" } });
+    const doc = new PDF({ margin: 48, size: "A4", info: { Title: "GST summary (NZ)" } });
     const chunks: Buffer[] = [];
     doc.on("data", (chunk: Buffer) => chunks.push(chunk));
     doc.on("end", () => resolve(Buffer.concat(chunks)));
