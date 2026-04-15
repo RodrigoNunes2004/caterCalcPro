@@ -27,10 +27,12 @@ export function usePlanAccess() {
     queryKey: ["billing-status", user?.organizationId || "anon"],
     queryFn: fetchBillingStatus,
     enabled: !!user?.organizationId,
-    staleTime: 60 * 1000,
+    /** Tier must stay in sync with API gates; long stale time showed PRO while analytics 403'd. */
+    staleTime: 0,
     retry: 2,
   });
 
+  /** Match server `/billing/status` + `resolveOrganizationPlanTier`; reconcile legacy starter+plan. */
   const planTier = query.data
     ? normalizePlanTier(query.data.planTier, query.data.plan)
     : ("starter" as PlanTier);

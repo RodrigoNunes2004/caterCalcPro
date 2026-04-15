@@ -8,6 +8,8 @@ import {
 } from "../middleware/auth.js";
 import { resolveAuthPayload } from "../lib/auth.js";
 import {
+  envContainsPriceId,
+  firstConfiguredPriceId,
   getStripePriceIdMap,
   inferPlanTierFromStripePriceId,
 } from "../lib/stripePlanPrices.js";
@@ -43,9 +45,13 @@ function resolveCheckoutTarget(body: any): {
   const prices = getPriceMap();
 
   if (requestedPriceId) {
-    if (requestedPriceId === prices.ai) return { priceId: requestedPriceId, planTier: "ai" };
-    if (requestedPriceId === prices.pro) return { priceId: requestedPriceId, planTier: "pro" };
-    if (requestedPriceId === prices.starter) {
+    if (envContainsPriceId(prices.ai, requestedPriceId)) {
+      return { priceId: requestedPriceId, planTier: "ai" };
+    }
+    if (envContainsPriceId(prices.pro, requestedPriceId)) {
+      return { priceId: requestedPriceId, planTier: "pro" };
+    }
+    if (envContainsPriceId(prices.starter, requestedPriceId)) {
       return { priceId: requestedPriceId, planTier: "starter" };
     }
     // Unknown custom price id defaults to requested tier semantics.
@@ -54,10 +60,10 @@ function resolveCheckoutTarget(body: any): {
 
   const tierPrice =
     requestedTier === "ai"
-      ? prices.ai
+      ? firstConfiguredPriceId(prices.ai)
       : requestedTier === "pro"
-        ? prices.pro
-        : prices.starter;
+        ? firstConfiguredPriceId(prices.pro)
+        : firstConfiguredPriceId(prices.starter);
 
   return { priceId: tierPrice, planTier: requestedTier };
 }
