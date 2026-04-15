@@ -288,43 +288,7 @@ router.get("/billing/status", authMiddleware, async (req: AuthRequest, res) => {
     if (!org) {
       return res.status(404).json({ error: "Organization not found" });
     }
-    // #region agent log
-    {
-      const resolved = resolveOrganizationPlanTier(org);
-      const baseOnly = normalizePlanTier(org.planTier, org.plan);
-      const fromStripe = inferPlanTierFromStripePriceId(
-        org.stripePriceId == null ? null : String(org.stripePriceId)
-      );
-      const priceTail =
-        org.stripePriceId == null
-          ? ""
-          : String(org.stripePriceId).slice(-8);
-      fetch("http://127.0.0.1:7520/ingest/529b7cc2-88c7-4df6-9032-42107fab9a7e", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Debug-Session-Id": "24a4ce",
-        },
-        body: JSON.stringify({
-          sessionId: "24a4ce",
-          runId: "pre-fix",
-          hypothesisId: "H1-H5",
-          location: "server/routes/billing.ts:GET /billing/status",
-          message: "Billing status resolved tiers",
-          data: {
-            organizationId,
-            resolved,
-            baseOnly,
-            fromStripe,
-            dbPlanTier: String(org.planTier ?? ""),
-            dbPlan: String(org.plan ?? ""),
-            stripePriceIdTail: priceTail,
-          },
-          timestamp: Date.now(),
-        }),
-      }).catch(() => {});
-    }
-    // #endregion
+    res.setHeader("Cache-Control", "private, no-store, must-revalidate");
     return res.json({
       organizationId: org.id,
       plan: org.plan || "trial",

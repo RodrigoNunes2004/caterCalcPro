@@ -16,6 +16,10 @@ import { buildGstSummaryCsv, buildGstSummaryPdf } from "../services/gstExportFor
 import { resolveAnalyticsDateRangeFromQuery } from "../services/analyticsDateRange.js";
 
 const router = Router();
+router.use((_req, res, next) => {
+  res.setHeader("Cache-Control", "private, no-store, must-revalidate");
+  next();
+});
 router.use(authMiddleware, requireBillingAccess, requirePlan("pro"));
 
 router.get("/analytics/overview", async (req: AuthRequest, res) => {
