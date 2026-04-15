@@ -7,18 +7,18 @@ import {
   type AuthRequest,
 } from "../middleware/auth.js";
 import { resolveAuthPayload } from "../lib/auth.js";
-import { normalizePlanTier } from "../middleware/plan.js";
+import {
+  getStripePriceIdMap,
+  inferPlanTierFromStripePriceId,
+} from "../lib/stripePlanPrices.js";
+import { resolveOrganizationPlanTier } from "../middleware/plan.js";
 
 const router = Router();
 
 type PlanTier = "starter" | "pro" | "ai";
 
 function getPriceMap() {
-  const legacy = String(process.env.STRIPE_PRICE_ID || "").trim();
-  const starter = String(process.env.STRIPE_PRICE_ID_STARTER || "").trim();
-  const pro = String(process.env.STRIPE_PRICE_ID_PRO || legacy).trim();
-  const ai = String(process.env.STRIPE_PRICE_ID_AI || "").trim();
-  return { starter, pro, ai };
+  return getStripePriceIdMap();
 }
 
 function normalizeTier(value: unknown): PlanTier {
@@ -60,15 +60,6 @@ function resolveCheckoutTarget(body: any): {
         : prices.starter;
 
   return { priceId: tierPrice, planTier: requestedTier };
-}
-
-function inferPlanTierFromStripePriceId(priceId: string | null): PlanTier {
-  const id = String(priceId || "").trim();
-  const prices = getPriceMap();
-  if (id && id === prices.ai) return "ai";
-  if (id && id === prices.pro) return "pro";
-  if (id && id === prices.starter) return "starter";
-  return "starter";
 }
 
 function getBaseUrl(req: any): string {
@@ -290,7 +281,7 @@ router.get("/billing/status", authMiddleware, async (req: AuthRequest, res) => {
     return res.json({
       organizationId: org.id,
       plan: org.plan || "trial",
-      planTier: normalizePlanTier(org.planTier, org.plan),
+      planTier: resolveOrganizationPlanTier(org),
       subscriptionStatus: org.subscriptionStatus || "trialing",
       trialEndsAt: org.trialEndsAt || null,
       stripeCustomerId: org.stripeCustomerId || null,

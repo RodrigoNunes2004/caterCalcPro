@@ -1,4 +1,5 @@
 import { type Response, type NextFunction } from "express";
+import { inferPlanTierFromStripePriceId } from "../lib/stripePlanPrices.js";
 import { storage } from "../storage.js";
 import type { AuthRequest } from "./auth.js";
 
@@ -30,6 +31,22 @@ export function normalizePlanTier(raw: unknown, fallbackPlan?: unknown): PlanTie
   return "starter";
 }
 
+/**
+ * Effective tier for gates and /billing/status: DB fields plus Stripe `stripePriceId` when DB lags
+ * (e.g. webhook updated price id before plan_tier).
+ */
+export function resolveOrganizationPlanTier(org: {
+  planTier?: unknown;
+  plan?: unknown;
+  stripePriceId?: unknown;
+}): PlanTier {
+  const base = normalizePlanTier(org.planTier, org.plan);
+  const fromStripe = inferPlanTierFromStripePriceId(
+    org.stripePriceId == null ? null : String(org.stripePriceId)
+  );
+  return PLAN_RANK[fromStripe] > PLAN_RANK[base] ? fromStripe : base;
+}
+
 export function requirePlan(minimumPlan: PlanTier) {
   return async function planGate(
     req: AuthRequest,
@@ -47,7 +64,7 @@ export function requirePlan(minimumPlan: PlanTier) {
         return res.status(404).json({ error: "Organization not found" });
       }
 
-      const currentTier = normalizePlanTier(org.planTier, org.plan);
+      const currentTier = resolveOrganizationPlanTier(org);
       if (PLAN_RANK[currentTier] >= PLAN_RANK[minimumPlan]) {
         return next();
       }
