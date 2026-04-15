@@ -62,6 +62,16 @@ export default function BillingPage() {
     return normalizePlanTier(raw);
   }, [location.search]);
 
+  /** Analytics only needs Pro; `from=/analytics&requiredPlan=ai` can come from a fetch race or old URL — treat as Pro for messaging. */
+  const effectiveRequiredPlan = useMemo<PlanTier | null>(() => {
+    if (!requiredPlan) return null;
+    const route = (fromPath.split("?")[0] || "/").replace(/\/$/, "") || "/";
+    if (requiredPlan === "ai" && (route === "/analytics" || route.endsWith("/analytics"))) {
+      return "pro";
+    }
+    return requiredPlan;
+  }, [requiredPlan, fromPath]);
+
   const highlightPlan = useMemo<PlanTier | null>(() => {
     const raw = new URLSearchParams(location.search).get("highlight");
     if (!raw) return null;
@@ -73,7 +83,7 @@ export default function BillingPage() {
   }, [status?.planTier, status?.plan]);
 
   const hasRequiredPlanAccess =
-    !requiredPlan || hasPlanAccess(currentPlanTier, requiredPlan);
+    !effectiveRequiredPlan || hasPlanAccess(currentPlanTier, effectiveRequiredPlan);
 
   const loadStatus = async () => {
     try {
@@ -273,12 +283,12 @@ export default function BillingPage() {
                   </div>
                 )}
 
-                {requiredPlan && !hasRequiredPlanAccess && (
+                {effectiveRequiredPlan && !hasRequiredPlanAccess && (
                   <div className="rounded-md border border-blue-300 bg-blue-50 p-3 text-sm text-blue-900">
-                    This area requires <strong>{requiredPlan}</strong> plan access or higher.
+                    This area requires <strong>{effectiveRequiredPlan}</strong> plan access or higher.
                   </div>
                 )}
-                {requiredPlan && hasRequiredPlanAccess && (
+                {effectiveRequiredPlan && hasRequiredPlanAccess && (
                   <div className="rounded-md border border-green-200 bg-green-50 p-3 text-sm text-green-900">
                     Your current plan already includes this access. Use <strong>Back</strong> to return to the app.
                   </div>
@@ -299,7 +309,7 @@ export default function BillingPage() {
             )}
 
             <div className="flex flex-col sm:flex-row flex-wrap gap-3">
-              {!(requiredPlan && hasRequiredPlanAccess) && (
+              {!(effectiveRequiredPlan && hasRequiredPlanAccess) && (
                 <>
                   <Button
                     id="plan-starter"

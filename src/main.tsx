@@ -10,6 +10,8 @@ let billingRedirectInProgress = false;
 window.fetch = function (input: RequestInfo | URL, init?: RequestInit) {
   const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
   if (url.startsWith("/api/")) {
+    /** Snapshot when the request is issued — avoids wrong `from=` if user navigates before the response (e.g. AI 403 after moving to Analytics). */
+    const pathWhenRequestStarted = `${window.location.pathname}${window.location.search}`;
     const headers = new Headers(init?.headers);
     const token = getAuthToken();
     if (token) headers.set("Authorization", `Bearer ${token}`);
@@ -37,12 +39,20 @@ window.fetch = function (input: RequestInfo | URL, init?: RequestInit) {
               data?.code === "PLAN_UPGRADE_REQUIRED"
             ) {
               billingRedirectInProgress = true;
-              const from = `${window.location.pathname}${window.location.search}`;
-              const requiredPlan =
+              const from = pathWhenRequestStarted;
+              let tier =
                 data?.billing?.requiredPlanTier &&
                 typeof data.billing.requiredPlanTier === "string"
-                  ? `&requiredPlan=${encodeURIComponent(data.billing.requiredPlanTier)}`
+                  ? data.billing.requiredPlanTier
                   : "";
+              if (
+                tier === "ai" &&
+                (pathOnly.startsWith("/api/analytics/") ||
+                  pathOnly.startsWith("/api/pricing-engine/"))
+              ) {
+                tier = "pro";
+              }
+              const requiredPlan = tier ? `&requiredPlan=${encodeURIComponent(tier)}` : "";
                            const billingUrl = `/billing?from=${encodeURIComponent(from)}${requiredPlan}`;
               window.location.assign(billingUrl);
             }
