@@ -62,14 +62,16 @@ export default function RegisterPage() {
             )}
 
             <div className="space-y-3">
-              <Label className="text-base font-medium">Choose a plan</Label>
+              <p className="text-base font-medium" id="register-plan-heading">
+                Choose a plan
+              </p>
               <RadioGroup
                 value={selectedPlan}
                 onValueChange={(v) => setSelectedPlan(v as PlanTier)}
                 className="grid gap-3"
+                aria-labelledby="register-plan-heading"
               >
                 <label
-                  htmlFor="plan-starter"
                   className={`flex cursor-pointer items-start gap-3 rounded-lg border p-4 transition-colors hover:bg-muted/50 ${
                     selectedPlan === "starter" ? "border-orange-500 bg-orange-50/50" : ""
                   }`}
@@ -89,7 +91,6 @@ export default function RegisterPage() {
                 </label>
 
                 <label
-                  htmlFor="plan-pro"
                   className={`flex cursor-pointer items-start gap-3 rounded-lg border p-4 transition-colors hover:bg-muted/50 ${
                     selectedPlan === "pro" ? "border-orange-500 bg-orange-50/50" : ""
                   }`}
@@ -107,7 +108,6 @@ export default function RegisterPage() {
                 </label>
 
                 <label
-                  htmlFor="plan-ai"
                   className={`flex cursor-pointer items-start gap-3 rounded-lg border p-4 transition-colors hover:bg-muted/50 ${
                     selectedPlan === "ai" ? "border-orange-500 bg-orange-50/50" : ""
                   }`}
