@@ -21,6 +21,13 @@ import {
   type AnalyticsRangeQueryState,
 } from "@/lib/analyticsDateRangeClient";
 
+/** Widen navigation beyond DayPicker’s default (~100y) so old records stay reachable in year dropdowns. */
+const ANALYTICS_PICKER_START = new Date(1900, 0, 1);
+function analyticsPickerEndMonth(): Date {
+  const y = new Date().getFullYear();
+  return new Date(y + 5, 11, 31);
+}
+
 type Props = {
   value: AnalyticsRangeQueryState;
   onChange: (next: AnalyticsRangeQueryState) => void;
@@ -119,6 +126,9 @@ export default function AnalyticsDateRangeBar({ value, onChange, className }: Pr
               mode="range"
               numberOfMonths={2}
               defaultMonth={pickerRange?.from}
+              captionLayout="dropdown"
+              startMonth={ANALYTICS_PICKER_START}
+              endMonth={analyticsPickerEndMonth()}
               selected={pickerRange}
               onSelect={(r) => {
                 setPickerRange(r);
