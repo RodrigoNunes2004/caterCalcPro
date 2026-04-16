@@ -1,4 +1,4 @@
-import "dotenv/config";
+import "./env.js";
 import express from "express";
 import cors from "cors";
 import cookieParser from "cookie-parser";
@@ -70,6 +70,9 @@ async function main() {
   server.listen(PORT, HOST, () => {
     log(`Server running on http://${HOST}:${PORT}`);
     log(`Environment: ${NODE_ENV}`);
+    log(
+      `Open the app at http://localhost:${PORT} (PORT=${PORT} from .env or default)`
+    );
   });
 }
 
