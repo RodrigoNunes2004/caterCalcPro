@@ -99,13 +99,15 @@ router.post("/auth/login", async (req: Request, res: Response) => {
 
 router.get("/auth/me", (req: Request, res: Response) => {
   try {
+    res.setHeader("Cache-Control", "private, no-store, must-revalidate");
     const cookies = req.cookies || {};
     const payload = resolveAuthPayload({
       authorization: req.headers.authorization,
       cookieToken: cookies.token,
     });
+    /** 200 + `user: null` avoids a spurious DevTools “401” on first paint when no session yet. */
     if (!payload) {
-      res.status(401).json({ error: "Unauthorized" });
+      res.json({ user: null });
       return;
     }
     res.json({

@@ -30,7 +30,7 @@ const AuthContext = createContext<AuthContextType | null>(null);
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  /** Bumps when login/register succeeds so a stale /auth/me (401) from before sign-in cannot clear the new token. */
+  /** Bumps when login/register succeeds so a stale /auth/me response from before sign-in cannot clear the new token. */
   const authEpochRef = useRef(0);
 
   const refreshUser = useCallback(async () => {
@@ -45,8 +45,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       });
       if (epoch !== authEpochRef.current) return;
       if (res.ok) {
-        const data = await res.json();
-        setUser(data.user);
+        const data = (await res.json()) as { user?: AuthUser | null };
+        const u = data.user ?? null;
+        setUser(u);
+        if (!u) setAuthToken(null);
       } else {
         setAuthToken(null);
         setUser(null);
