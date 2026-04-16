@@ -7,7 +7,15 @@ import { calculateRecipeCost } from "../services/pricingEngine.js";
 import { storage } from "../storage.js";
 
 const router = Router();
-router.use(authMiddleware, requireBillingAccess, requirePlan("ai"));
+
+/**
+ * Do not attach `requirePlan("ai")` at the top level of the default export router.
+ * This router is mounted on the same `/api` stack as Analytics; Express will run
+ * unmatched requests through sub-routers in order — a global `router.use(requirePlan("ai"))`
+ * would reject every `/api/analytics/*` hit with PLAN_UPGRADE_REQUIRED (requiredPlanTier: ai).
+ */
+const aiProtected = Router();
+aiProtected.use(authMiddleware, requireBillingAccess, requirePlan("ai"));
 
 const generateRecipeSchema = z.object({
   cuisineType: z.string().min(1),
@@ -18,7 +26,7 @@ const generateRecipeSchema = z.object({
   recipeName: z.string().min(1).optional(),
 });
 
-router.post("/ai/generate-recipe", async (req: AuthRequest, res) => {
+aiProtected.post("/generate-recipe", async (req: AuthRequest, res) => {
   try {
     const payload = generateRecipeSchema.parse(req.body || {});
     const organizationId = req.auth!.organizationId;
@@ -77,6 +85,8 @@ router.post("/ai/generate-recipe", async (req: AuthRequest, res) => {
     return res.status(500).json({ error: "Failed to generate AI recipe" });
   }
 });
+
+router.use("/ai", aiProtected);
 
 export default router;
 
