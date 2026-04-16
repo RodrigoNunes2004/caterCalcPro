@@ -1,4 +1,5 @@
 import { type Response, type NextFunction } from "express";
+import { coerceOrganizationBillingRow } from "../lib/billingOrgShape.js";
 import {
   inferPlanTierFromStripePriceId,
   isStripePriceIdUnmappedInEnv,
@@ -46,30 +47,34 @@ export function resolveOrganizationPlanTier(org: {
   subscriptionStatus?: unknown;
   stripeSubscriptionId?: unknown;
   stripeCustomerId?: unknown;
+  trialEndsAt?: unknown;
+  subscriptionCurrentPeriodEnd?: unknown;
 }): PlanTier {
-  const base = normalizePlanTier(org.planTier, org.plan);
+  const o = coerceOrganizationBillingRow(org);
+
+  const base = normalizePlanTier(o.planTier, o.plan);
   const fromStripe = inferPlanTierFromStripePriceId(
-    org.stripePriceId == null ? null : String(org.stripePriceId)
+    o.stripePriceId == null ? null : String(o.stripePriceId)
   );
   let merged: PlanTier =
     PLAN_RANK[fromStripe] > PLAN_RANK[base] ? fromStripe : base;
 
   const hasStripeSubscription = Boolean(
-    String(org.stripeSubscriptionId ?? "").trim()
+    String(o.stripeSubscriptionId ?? "").trim()
   );
-  const hasStripeCustomer = Boolean(
-    String(org.stripeCustomerId ?? "").trim()
-  );
+  const hasStripeCustomer = Boolean(String(o.stripeCustomerId ?? "").trim());
   const priceId =
-    org.stripePriceId == null ? "" : String(org.stripePriceId).trim();
-  // Price id not in STRIPE_PRICE_ID_* env → infer "starter". If billing access already passes
-  // (incl. cancelled-but-paid-period) but tier stayed starter, align with Pro so gates match billing.
+    o.stripePriceId == null ? "" : String(o.stripePriceId).trim();
+
+  // Still "starter" after DB + env price mapping: common in prod when `stripe_price_id` was never
+  // stored (webhook/local only), or the id is missing from STRIPE_PRICE_ID_* lists. If the org already
+  // passes subscription billing access and has Stripe linkage, treat as Pro for gates (list all price
+  // ids in env to avoid relying on this).
   if (
-    organizationHasBillingApiAccess(org) &&
-    (hasStripeSubscription || hasStripeCustomer) &&
     merged === "starter" &&
-    priceId &&
-    isStripePriceIdUnmappedInEnv(priceId)
+    organizationHasBillingApiAccess(o) &&
+    (hasStripeSubscription || hasStripeCustomer) &&
+    (!priceId || isStripePriceIdUnmappedInEnv(priceId))
   ) {
     merged = "pro";
   }
