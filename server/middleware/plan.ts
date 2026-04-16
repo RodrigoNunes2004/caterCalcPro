@@ -171,6 +171,36 @@ export function requirePlan(minimumPlan: PlanTier) {
         return next();
       }
 
+      // #region agent log
+      {
+        const trace = getPlanResolutionTrace(org);
+        fetch(
+          "http://127.0.0.1:7520/ingest/529b7cc2-88c7-4df6-9032-42107fab9a7e",
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "X-Debug-Session-Id": "24a4ce",
+            },
+            body: JSON.stringify({
+              sessionId: "24a4ce",
+              location: "server/middleware/plan.ts:requirePlan",
+              message: "plan gate 403",
+              data: {
+                hypothesisId: "H1",
+                minimumPlan,
+                currentTier,
+                orgSuffix: String(organizationId).slice(-8),
+                trace,
+              },
+              timestamp: Date.now(),
+              runId: "debug-analytics-403",
+            }),
+          }
+        ).catch(() => {});
+      }
+      // #endregion
+
       return res.status(403).json({
         error: "Plan upgrade required",
         code: "PLAN_UPGRADE_REQUIRED",

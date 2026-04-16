@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
 import {
@@ -42,6 +43,36 @@ export function usePlanAccess() {
   const planTier = query.data
     ? planTierFromBillingPayload(query.data)
     : ("starter" as PlanTier);
+
+  useEffect(() => {
+    if (!query.data) return;
+    // #region agent log
+    fetch(
+      "http://127.0.0.1:7520/ingest/529b7cc2-88c7-4df6-9032-42107fab9a7e",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Debug-Session-Id": "24a4ce",
+        },
+        body: JSON.stringify({
+          sessionId: "24a4ce",
+          location: "src/hooks/usePlanAccess.ts",
+          message: "billing status for badge",
+          data: {
+            hypothesisId: "H2",
+            computedTier: planTier,
+            apiPlanTier: String(query.data.planTier ?? ""),
+            apiPlan: String(query.data.plan ?? ""),
+            isError: query.isError,
+          },
+          timestamp: Date.now(),
+          runId: "debug-analytics-403",
+        }),
+      }
+    ).catch(() => {});
+    // #endregion
+  }, [query.data, query.isError, planTier]);
 
   /** Do not grant route access when billing failed — that caused PRO badge + Analytics 403 mismatch. */
   const canAccess = (required: PlanTier) => {
