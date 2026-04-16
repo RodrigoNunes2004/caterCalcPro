@@ -36,6 +36,58 @@ export function normalizePlanTier(raw: unknown, fallbackPlan?: unknown): PlanTie
   return "starter";
 }
 
+type CoercedOrg = ReturnType<typeof coerceOrganizationBillingRow>;
+
+function computeResolvedTierFromCoerced(o: CoercedOrg): {
+  tier: PlanTier;
+  mergedBeforePromotion: PlanTier;
+  promotionToProApplied: boolean;
+  base: PlanTier;
+  fromStripe: PlanTier;
+} {
+  const base = normalizePlanTier(o.planTier, o.plan);
+  const fromStripe = inferPlanTierFromStripePriceId(
+    o.stripePriceId == null ? null : String(o.stripePriceId)
+  );
+  let merged: PlanTier =
+    PLAN_RANK[fromStripe] > PLAN_RANK[base] ? fromStripe : base;
+  const mergedBeforePromotion = merged;
+
+  const hasStripeSubscription = Boolean(
+    String(o.stripeSubscriptionId ?? "").trim()
+  );
+  const hasStripeCustomer = Boolean(String(o.stripeCustomerId ?? "").trim());
+
+  const strictStarterTier =
+    process.env.STRIPE_STRICT_STARTER_TIER === "true";
+  const priceIdStr =
+    o.stripePriceId == null ? "" : String(o.stripePriceId).trim();
+  const unmappedOrMissing =
+    !priceIdStr || isStripePriceIdUnmappedInEnv(priceIdStr);
+
+  let promotionToProApplied = false;
+  if (
+    merged === "starter" &&
+    organizationHasBillingApiAccess(o) &&
+    (hasStripeSubscription || hasStripeCustomer)
+  ) {
+    const allowPromote =
+      !strictStarterTier || unmappedOrMissing;
+    if (allowPromote) {
+      merged = "pro";
+      promotionToProApplied = true;
+    }
+  }
+
+  return {
+    tier: merged,
+    mergedBeforePromotion,
+    promotionToProApplied,
+    base,
+    fromStripe,
+  };
+}
+
 /**
  * Effective tier for gates and /billing/status: DB fields plus Stripe `stripePriceId` when DB lags
  * (e.g. webhook updated price id before plan_tier).
@@ -51,35 +103,50 @@ export function resolveOrganizationPlanTier(org: {
   subscriptionCurrentPeriodEnd?: unknown;
 }): PlanTier {
   const o = coerceOrganizationBillingRow(org);
+  return computeResolvedTierFromCoerced(o).tier;
+}
 
-  const base = normalizePlanTier(o.planTier, o.plan);
-  const fromStripe = inferPlanTierFromStripePriceId(
-    o.stripePriceId == null ? null : String(o.stripePriceId)
-  );
-  let merged: PlanTier =
-    PLAN_RANK[fromStripe] > PLAN_RANK[base] ? fromStripe : base;
+export type PlanResolutionTrace = {
+  base: PlanTier;
+  fromStripe: PlanTier;
+  mergedBeforePromotion: PlanTier;
+  resolved: PlanTier;
+  hasBillingAccess: boolean;
+  hasStripeSubscription: boolean;
+  hasStripeCustomer: boolean;
+  priceIdSuffix: string;
+  priceUnmappedInEnv: boolean;
+  promotionToProApplied: boolean;
+  subscriptionStatus: string;
+  dbPlanTier: string;
+  dbPlan: string;
+};
 
-  const hasStripeSubscription = Boolean(
-    String(o.stripeSubscriptionId ?? "").trim()
-  );
-  const hasStripeCustomer = Boolean(String(o.stripeCustomerId ?? "").trim());
+/** Safe diagnostics for /api/billing/plan-debug (no secrets). */
+export function getPlanResolutionTrace(org: unknown): PlanResolutionTrace {
+  const o = coerceOrganizationBillingRow(org);
   const priceId =
     o.stripePriceId == null ? "" : String(o.stripePriceId).trim();
-
-  // Still "starter" after DB + env price mapping: common in prod when `stripe_price_id` was never
-  // stored (webhook/local only), or the id is missing from STRIPE_PRICE_ID_* lists. If the org already
-  // passes subscription billing access and has Stripe linkage, treat as Pro for gates (list all price
-  // ids in env to avoid relying on this).
-  if (
-    merged === "starter" &&
-    organizationHasBillingApiAccess(o) &&
-    (hasStripeSubscription || hasStripeCustomer) &&
-    (!priceId || isStripePriceIdUnmappedInEnv(priceId))
-  ) {
-    merged = "pro";
-  }
-
-  return merged;
+  const c = computeResolvedTierFromCoerced(o);
+  return {
+    base: c.base,
+    fromStripe: c.fromStripe,
+    mergedBeforePromotion: c.mergedBeforePromotion,
+    resolved: c.tier,
+    hasBillingAccess: organizationHasBillingApiAccess(o),
+    hasStripeSubscription: Boolean(
+      String(o.stripeSubscriptionId ?? "").trim()
+    ),
+    hasStripeCustomer: Boolean(String(o.stripeCustomerId ?? "").trim()),
+    priceIdSuffix: priceId ? priceId.slice(-10) : "",
+    priceUnmappedInEnv: Boolean(
+      priceId && isStripePriceIdUnmappedInEnv(priceId)
+    ),
+    promotionToProApplied: c.promotionToProApplied,
+    subscriptionStatus: String(o.subscriptionStatus ?? ""),
+    dbPlanTier: String(o.planTier ?? ""),
+    dbPlan: String(o.plan ?? ""),
+  };
 }
 
 export function requirePlan(minimumPlan: PlanTier) {

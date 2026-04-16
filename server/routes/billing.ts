@@ -15,6 +15,7 @@ import {
   isStripePriceIdUnmappedInEnv,
 } from "../lib/stripePlanPrices.js";
 import {
+  getPlanResolutionTrace,
   normalizePlanTier,
   resolveOrganizationPlanTier,
 } from "../middleware/plan.js";
@@ -304,6 +305,25 @@ router.get("/billing/status", authMiddleware, async (req: AuthRequest, res) => {
   } catch (error) {
     console.error("Error fetching billing status:", error);
     return res.status(500).json({ error: "Failed to fetch billing status" });
+  }
+});
+
+/** Signed-in only: how the server resolved plan tier (debug production Analytics 403 vs PRO badge). */
+router.get("/billing/plan-debug", authMiddleware, async (req: AuthRequest, res) => {
+  try {
+    const organizationId = req.auth!.organizationId;
+    const org = await storage.getOrganizationBilling(organizationId);
+    if (!org) {
+      return res.status(404).json({ error: "Organization not found" });
+    }
+    res.setHeader("Cache-Control", "private, no-store, must-revalidate");
+    return res.json({
+      organizationId: org.id,
+      trace: getPlanResolutionTrace(org),
+    });
+  } catch (error) {
+    console.error("plan-debug:", error);
+    return res.status(500).json({ error: "Failed to load plan debug" });
   }
 });
 

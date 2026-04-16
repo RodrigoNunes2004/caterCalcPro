@@ -43,9 +43,9 @@ export function usePlanAccess() {
     ? planTierFromBillingPayload(query.data)
     : ("starter" as PlanTier);
 
-  /** If billing status fails, do not block the UI as "starter" — APIs still enforce plan/subscription. */
+  /** Do not grant route access when billing failed — that caused PRO badge + Analytics 403 mismatch. */
   const canAccess = (required: PlanTier) => {
-    if (query.isError) return true;
+    if (query.isError) return false;
     if (!query.data) return false;
     return hasPlanAccess(planTier, required);
   };
