@@ -59,6 +59,14 @@ async function main() {
     console.error(err);
   }
 
+  server.on("error", (err: NodeJS.ErrnoException) => {
+    if (err.code === "EADDRINUSE") {
+      log(
+        `Port ${PORT} is already in use. Set PORT in .env to another value (e.g. 3001) or stop the process using that port.`,
+        "error"
+      );
+    }
+  });
   server.listen(PORT, HOST, () => {
     log(`Server running on http://${HOST}:${PORT}`);
     log(`Environment: ${NODE_ENV}`);
