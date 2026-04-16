@@ -6,7 +6,7 @@ export type StripePlanTier = "starter" | "pro" | "ai";
 function splitPriceIds(raw: string): string[] {
   return String(raw || "")
     .split(/[,;\s]+/)
-    .map((s) => s.trim())
+    .map((s) => s.replace(/^["']|["']$/g, "").trim())
     .filter(Boolean);
 }
 
@@ -24,8 +24,14 @@ export function getStripePriceIdMap() {
 }
 
 /** True if `priceId` is listed in a tier env var (supports comma-separated ids). */
+function normalizePriceId(id: string): string {
+  return String(id || "")
+    .trim()
+    .replace(/^["']|["']$/g, "");
+}
+
 export function envContainsPriceId(envBlob: string, priceId: string): boolean {
-  const id = String(priceId || "").trim();
+  const id = normalizePriceId(priceId);
   if (!id) return false;
   return splitPriceIds(envBlob).some((p) => p === id);
 }
@@ -34,7 +40,7 @@ export function envContainsPriceId(envBlob: string, priceId: string): boolean {
 export function inferPlanTierFromStripePriceId(
   priceId: string | null | undefined
 ): StripePlanTier {
-  const id = String(priceId || "").trim();
+  const id = normalizePriceId(String(priceId || ""));
   if (!id) return "starter";
   const prices = getStripePriceIdMap();
   if (envContainsPriceId(prices.ai, id)) return "ai";
@@ -47,7 +53,7 @@ export function inferPlanTierFromStripePriceId(
 export function isStripePriceIdUnmappedInEnv(
   priceId: string | null | undefined
 ): boolean {
-  const id = String(priceId || "").trim();
+  const id = normalizePriceId(String(priceId || ""));
   if (!id) return false;
   const prices = getStripePriceIdMap();
   return (
