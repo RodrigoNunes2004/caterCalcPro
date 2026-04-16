@@ -72,6 +72,8 @@ function getApiRouter(): Promise<Router> {
         const { default: analyticsRoutes } = await import("../server/routes/analytics.js");
         router.use(analyticsRoutes);
       } catch (analyticsErr) {
+        // Typical cause on Vercel: a transitive import outside `server/**` and `shared/**`
+        // (see vercel.json includeFiles). /api/analytics/* then falls through to 404 "Not found".
         console.error("Analytics routes failed to load:", analyticsErr);
       }
       try {

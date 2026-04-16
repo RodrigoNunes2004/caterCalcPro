@@ -5,7 +5,7 @@ import {
   getGSTFromInclusive,
   removeGST,
   GST_RATE,
-} from "../../src/lib/gstCalculation.ts";
+} from "../../shared/gstCalculation.js";
 import { eventSnapshots, events, inventory } from "../../shared/schema.js";
 import { db } from "../storage.js";
 
