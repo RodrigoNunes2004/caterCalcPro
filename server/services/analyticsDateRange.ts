@@ -1,4 +1,5 @@
 import { subDays, endOfDay, startOfDay } from "date-fns";
+import { computePreviousPeriodBounds } from "../../shared/analyticsPreviousPeriod.js";
 
 export type ResolvedAnalyticsDateRange = {
   start: Date;
@@ -70,4 +71,13 @@ export function dateRangeToJson(range: ResolvedAnalyticsDateRange) {
     start: range.start.toISOString(),
     end: range.end.toISOString(),
   };
+}
+
+/** Same inclusive length as `range`, ending the day before `range.start`. */
+export function resolvePreviousAnalyticsDateRange(
+  range: ResolvedAnalyticsDateRange
+): ResolvedAnalyticsDateRange | null {
+  const prev = computePreviousPeriodBounds(range.start, range.end);
+  if (!prev) return null;
+  return { start: prev.start, end: prev.end };
 }

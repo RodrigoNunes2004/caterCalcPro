@@ -14,6 +14,7 @@ import {
 import { getGstSummaryPayload } from "../services/gstReportingService.js";
 import { buildGstSummaryCsv, buildGstSummaryPdf } from "../services/gstExportFormats.js";
 import { resolveAnalyticsDateRangeFromQuery } from "../services/analyticsDateRange.js";
+import { buildAnalyticsSummaryCsv } from "../services/analyticsSummaryExport.js";
 
 const router = Router();
 router.use((_req, res, next) => {
@@ -55,6 +56,22 @@ router.get("/analytics/top-cost-recipes", async (req: AuthRequest, res) => {
   } catch (error) {
     console.error("Failed to fetch top cost recipes:", error);
     return res.status(500).json({ error: "Failed to fetch top cost recipes" });
+  }
+});
+
+/** KPIs + prior-period columns + cost-trend rows; same date query as other analytics routes. */
+router.get("/analytics/export/summary.csv", async (req: AuthRequest, res) => {
+  try {
+    const organizationId = req.auth!.organizationId;
+    const range = resolveAnalyticsDateRangeFromQuery(req.query as Record<string, unknown>);
+    const csv = await buildAnalyticsSummaryCsv(organizationId, range);
+    const filename = `gastro-grid-analytics-summary-${new Date().toISOString().slice(0, 10)}.csv`;
+    res.setHeader("Content-Type", "text/csv; charset=utf-8");
+    res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+    res.send(`\uFEFF${csv}`);
+  } catch (error) {
+    console.error("Failed to export analytics summary CSV:", error);
+    return res.status(500).json({ error: "Failed to export analytics summary CSV" });
   }
 });
 

@@ -45,6 +45,7 @@ import {
   rangeQueryStateToSearchParams,
   type AnalyticsRangeQueryState,
 } from "@/lib/analyticsDateRangeClient";
+import { previousPeriodToSearchParams } from "@/lib/analyticsPreviousPeriodClient";
 import { fetchAnalyticsJson } from "@/lib/analyticsApi";
 
 type OverviewData = {
@@ -158,6 +159,24 @@ function formatIsoRange(startIso: string, endIso: string): string {
   }
 }
 
+function formatSignedCurrencyDelta(current: number, previous: number): string {
+  const d = Math.round((current - previous) * 100) / 100;
+  const sign = d > 0 ? "+" : "";
+  return `${sign}$${d.toFixed(2)} vs prior period`;
+}
+
+function formatSignedPercentPointsDelta(current: number, previous: number): string {
+  const d = Math.round((current - previous) * 100) / 100;
+  const sign = d > 0 ? "+" : "";
+  return `${sign}${d.toFixed(2)} pp vs prior period`;
+}
+
+function formatSignedCountDelta(current: number, previous: number): string {
+  const d = current - previous;
+  const sign = d > 0 ? "+" : "";
+  return `${sign}${d} vs prior period`;
+}
+
 function gstEventSnapshotPeriodLabel(ev: GstSummaryResponse["eventSnapshots"]): string {
   if (ev.dateRange) {
     const y = new Date(ev.dateRange.start).getUTCFullYear();
@@ -203,6 +222,19 @@ export default function AnalyticsPage() {
     queryKey: ["analytics-overview", rangeQs],
     queryFn: (): Promise<OverviewData> =>
       fetchAnalyticsJson(`/api/analytics/overview?${rangeQs}`),
+  });
+
+  const prevPeriodQs = useMemo(() => {
+    const dr = overviewQuery.data?.dateRange;
+    if (!dr?.start || !dr?.end) return null;
+    return previousPeriodToSearchParams(dr.start, dr.end);
+  }, [overviewQuery.data?.dateRange?.start, overviewQuery.data?.dateRange?.end]);
+
+  const previousOverviewQuery = useQuery({
+    queryKey: ["analytics-overview-prev", prevPeriodQs],
+    queryFn: (): Promise<OverviewData> =>
+      fetchAnalyticsJson(`/api/analytics/overview?${prevPeriodQs}`),
+    enabled: Boolean(prevPeriodQs) && overviewQuery.isSuccess,
   });
 
   const trendsQuery = useQuery({
@@ -258,11 +290,17 @@ export default function AnalyticsPage() {
   }, [trendsQuery.data]);
 
   const overview = overviewQuery.data;
+  const previousOverview = previousOverviewQuery.data;
   const topEvents = overview?.topCostEvents ?? [];
   const recipes = recipesQuery.data ?? [];
   const kpiPeriodLabel =
     overview?.dateRange?.start && overview?.dateRange?.end
       ? formatIsoRange(overview.dateRange.start, overview.dateRange.end)
+      : null;
+
+  const priorPeriodLabel =
+    previousOverview?.dateRange?.start && previousOverview?.dateRange?.end
+      ? formatIsoRange(previousOverview.dateRange.start, previousOverview.dateRange.end)
       : null;
 
   const isLoadingAny =
@@ -288,7 +326,24 @@ export default function AnalyticsPage() {
       </header>
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
-        <AnalyticsDateRangeBar value={rangeState} onChange={setRangeState} />
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+          <AnalyticsDateRangeBar
+            value={rangeState}
+            onChange={setRangeState}
+            className="flex-1 min-w-0"
+          />
+          <div className="flex shrink-0 flex-col gap-1 items-stretch sm:items-end">
+            <Button variant="outline" size="sm" asChild className="gap-1.5">
+              <a href={`/api/analytics/export/summary.csv?${rangeQs}`}>
+                <Download className="h-3.5 w-3.5" />
+                Summary (CSV)
+              </a>
+            </Button>
+            <p className="text-xs text-muted-foreground max-w-[220px] sm:text-right">
+              KPIs, prior-period deltas, and snapshot trend rows — separate from GST exports.
+            </p>
+          </div>
+        </div>
 
         <section aria-label="Summary KPIs">
               {overviewQuery.isLoading && (
@@ -313,51 +368,135 @@ export default function AnalyticsPage() {
                 </p>
               )}
               {!overviewQuery.isLoading && !overviewQuery.isError && overview && (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="text-sm">Profit (snapshots)</CardTitle>
-                      {kpiPeriodLabel && (
-                        <CardDescription className="text-xs">{kpiPeriodLabel}</CardDescription>
-                      )}
-                    </CardHeader>
-                    <CardContent className="text-2xl font-semibold tabular-nums">
-                      ${Number(overview.monthlyProfit ?? 0).toFixed(2)}
-                    </CardContent>
-                  </Card>
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="text-sm">Average margin</CardTitle>
-                      {kpiPeriodLabel && (
-                        <CardDescription className="text-xs">{kpiPeriodLabel}</CardDescription>
-                      )}
-                    </CardHeader>
-                    <CardContent className="text-2xl font-semibold tabular-nums">
-                      {Number(overview.averageMarginPercent ?? 0).toFixed(2)}%
-                    </CardContent>
-                  </Card>
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="text-sm">Inventory movement</CardTitle>
-                      {kpiPeriodLabel && (
-                        <CardDescription className="text-xs">{kpiPeriodLabel}</CardDescription>
-                      )}
-                    </CardHeader>
-                    <CardContent className="text-2xl font-semibold tabular-nums">
-                      ${Number(overview.inventorySpend ?? 0).toFixed(2)}
-                    </CardContent>
-                  </Card>
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="text-sm">Event snapshots</CardTitle>
-                      {kpiPeriodLabel && (
-                        <CardDescription className="text-xs">{kpiPeriodLabel}</CardDescription>
-                      )}
-                    </CardHeader>
-                    <CardContent className="text-2xl font-semibold tabular-nums">
-                      {Number(overview.snapshotCount ?? 0)}
-                    </CardContent>
-                  </Card>
+                <div className="space-y-3">
+                  {prevPeriodQs && (
+                    <p className="text-xs text-muted-foreground">
+                      Compared to the prior window of equal length
+                      {priorPeriodLabel ? (
+                        <>
+                          :{" "}
+                          <span className="font-medium text-foreground">{priorPeriodLabel}</span>
+                        </>
+                      ) : null}
+                      {previousOverviewQuery.isLoading ? " (loading…)" : null}
+                    </p>
+                  )}
+                  {prevPeriodQs == null && overview.dateRange && (
+                    <p className="text-xs text-muted-foreground">
+                      Prior-period comparison is not available for this range (for example All
+                      time, or windows that reach the earliest dates).
+                    </p>
+                  )}
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <Card>
+                      <CardHeader>
+                        <CardTitle className="text-sm">Profit (snapshots)</CardTitle>
+                        {kpiPeriodLabel && (
+                          <CardDescription className="text-xs">{kpiPeriodLabel}</CardDescription>
+                        )}
+                      </CardHeader>
+                      <CardContent className="space-y-2">
+                        <p className="text-2xl font-semibold tabular-nums">
+                          ${Number(overview.monthlyProfit ?? 0).toFixed(2)}
+                        </p>
+                        {prevPeriodQs && previousOverviewQuery.isLoading && (
+                          <p className="text-xs text-muted-foreground">Prior period…</p>
+                        )}
+                        {prevPeriodQs && previousOverviewQuery.isError && (
+                          <p className="text-xs text-destructive">Prior period unavailable.</p>
+                        )}
+                        {prevPeriodQs && previousOverviewQuery.data && (
+                          <p className="text-xs tabular-nums text-muted-foreground">
+                            {formatSignedCurrencyDelta(
+                              Number(overview.monthlyProfit ?? 0),
+                              Number(previousOverviewQuery.data.monthlyProfit ?? 0)
+                            )}
+                          </p>
+                        )}
+                      </CardContent>
+                    </Card>
+                    <Card>
+                      <CardHeader>
+                        <CardTitle className="text-sm">Average margin</CardTitle>
+                        {kpiPeriodLabel && (
+                          <CardDescription className="text-xs">{kpiPeriodLabel}</CardDescription>
+                        )}
+                      </CardHeader>
+                      <CardContent className="space-y-2">
+                        <p className="text-2xl font-semibold tabular-nums">
+                          {Number(overview.averageMarginPercent ?? 0).toFixed(2)}%
+                        </p>
+                        {prevPeriodQs && previousOverviewQuery.isLoading && (
+                          <p className="text-xs text-muted-foreground">Prior period…</p>
+                        )}
+                        {prevPeriodQs && previousOverviewQuery.isError && (
+                          <p className="text-xs text-destructive">Prior period unavailable.</p>
+                        )}
+                        {prevPeriodQs && previousOverviewQuery.data && (
+                          <p className="text-xs tabular-nums text-muted-foreground">
+                            {formatSignedPercentPointsDelta(
+                              Number(overview.averageMarginPercent ?? 0),
+                              Number(previousOverviewQuery.data.averageMarginPercent ?? 0)
+                            )}
+                          </p>
+                        )}
+                      </CardContent>
+                    </Card>
+                    <Card>
+                      <CardHeader>
+                        <CardTitle className="text-sm">Inventory movement</CardTitle>
+                        {kpiPeriodLabel && (
+                          <CardDescription className="text-xs">{kpiPeriodLabel}</CardDescription>
+                        )}
+                      </CardHeader>
+                      <CardContent className="space-y-2">
+                        <p className="text-2xl font-semibold tabular-nums">
+                          ${Number(overview.inventorySpend ?? 0).toFixed(2)}
+                        </p>
+                        {prevPeriodQs && previousOverviewQuery.isLoading && (
+                          <p className="text-xs text-muted-foreground">Prior period…</p>
+                        )}
+                        {prevPeriodQs && previousOverviewQuery.isError && (
+                          <p className="text-xs text-destructive">Prior period unavailable.</p>
+                        )}
+                        {prevPeriodQs && previousOverviewQuery.data && (
+                          <p className="text-xs tabular-nums text-muted-foreground">
+                            {formatSignedCurrencyDelta(
+                              Number(overview.inventorySpend ?? 0),
+                              Number(previousOverviewQuery.data.inventorySpend ?? 0)
+                            )}
+                          </p>
+                        )}
+                      </CardContent>
+                    </Card>
+                    <Card>
+                      <CardHeader>
+                        <CardTitle className="text-sm">Event snapshots</CardTitle>
+                        {kpiPeriodLabel && (
+                          <CardDescription className="text-xs">{kpiPeriodLabel}</CardDescription>
+                        )}
+                      </CardHeader>
+                      <CardContent className="space-y-2">
+                        <p className="text-2xl font-semibold tabular-nums">
+                          {Number(overview.snapshotCount ?? 0)}
+                        </p>
+                        {prevPeriodQs && previousOverviewQuery.isLoading && (
+                          <p className="text-xs text-muted-foreground">Prior period…</p>
+                        )}
+                        {prevPeriodQs && previousOverviewQuery.isError && (
+                          <p className="text-xs text-destructive">Prior period unavailable.</p>
+                        )}
+                        {prevPeriodQs && previousOverviewQuery.data && (
+                          <p className="text-xs tabular-nums text-muted-foreground">
+                            {formatSignedCountDelta(
+                              Number(overview.snapshotCount ?? 0),
+                              Number(previousOverviewQuery.data.snapshotCount ?? 0)
+                            )}
+                          </p>
+                        )}
+                      </CardContent>
+                    </Card>
+                  </div>
                 </div>
               )}
             </section>
