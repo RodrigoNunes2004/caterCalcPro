@@ -14,7 +14,10 @@ import {
 import { getGstSummaryPayload } from "../services/gstReportingService.js";
 import { buildGstSummaryCsv, buildGstSummaryPdf } from "../services/gstExportFormats.js";
 import { resolveAnalyticsDateRangeFromQuery } from "../services/analyticsDateRange.js";
-import { buildAnalyticsSummaryCsv } from "../services/analyticsSummaryExport.js";
+import {
+  buildAnalyticsSummaryCsv,
+  buildAnalyticsSummaryPdf,
+} from "../services/analyticsSummaryExport.js";
 
 const router = Router();
 router.use((_req, res, next) => {
@@ -72,6 +75,21 @@ router.get("/analytics/export/summary.csv", async (req: AuthRequest, res) => {
   } catch (error) {
     console.error("Failed to export analytics summary CSV:", error);
     return res.status(500).json({ error: "Failed to export analytics summary CSV" });
+  }
+});
+
+router.get("/analytics/export/summary.pdf", async (req: AuthRequest, res) => {
+  try {
+    const organizationId = req.auth!.organizationId;
+    const range = resolveAnalyticsDateRangeFromQuery(req.query as Record<string, unknown>);
+    const pdf = await buildAnalyticsSummaryPdf(organizationId, range);
+    const filename = `gastro-grid-analytics-summary-${new Date().toISOString().slice(0, 10)}.pdf`;
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+    res.send(pdf);
+  } catch (error) {
+    console.error("Failed to export analytics summary PDF:", error);
+    return res.status(500).json({ error: "Failed to export analytics summary PDF" });
   }
 });
 

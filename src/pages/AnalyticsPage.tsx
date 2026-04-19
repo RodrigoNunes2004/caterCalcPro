@@ -333,12 +333,20 @@ export default function AnalyticsPage() {
             className="flex-1 min-w-0"
           />
           <div className="flex shrink-0 flex-col gap-1 items-stretch sm:items-end">
-            <Button variant="outline" size="sm" asChild className="gap-1.5">
-              <a href={`/api/analytics/export/summary.csv?${rangeQs}`}>
-                <Download className="h-3.5 w-3.5" />
-                Summary (CSV)
-              </a>
-            </Button>
+            <div className="flex flex-wrap gap-2 justify-end">
+              <Button variant="outline" size="sm" asChild className="gap-1.5">
+                <a href={`/api/analytics/export/summary.csv?${rangeQs}`}>
+                  <Download className="h-3.5 w-3.5" />
+                  Summary (CSV)
+                </a>
+              </Button>
+              <Button variant="outline" size="sm" asChild className="gap-1.5">
+                <a href={`/api/analytics/export/summary.pdf?${rangeQs}`}>
+                  <Download className="h-3.5 w-3.5" />
+                  Summary (PDF)
+                </a>
+              </Button>
+            </div>
             <p className="text-xs text-muted-foreground max-w-[220px] sm:text-right">
               KPIs, prior-period deltas, and snapshot trend rows — separate from GST exports.
             </p>
@@ -745,7 +753,12 @@ export default function AnalyticsPage() {
                               {gstQuery.data.eventSnapshots.rows.map((row) => (
                                 <TableRow key={row.snapshotId}>
                                   <TableCell className="font-medium max-w-[180px] truncate">
-                                    {row.eventName}
+                                    <Link
+                                      to={`/events?event=${encodeURIComponent(row.eventId)}`}
+                                      className="text-primary underline-offset-4 hover:underline truncate inline-block max-w-full"
+                                    >
+                                      {row.eventName}
+                                    </Link>
                                   </TableCell>
                                   <TableCell className="text-right tabular-nums">
                                     {formatNZCurrency(row.targetPrice)}
@@ -819,7 +832,12 @@ export default function AnalyticsPage() {
                             {topEvents.map((ev) => (
                               <TableRow key={ev.eventId}>
                                 <TableCell className="font-medium">
-                                  {ev.eventName}
+                                  <Link
+                                    to={`/events?event=${encodeURIComponent(ev.eventId)}`}
+                                    className="text-primary underline-offset-4 hover:underline"
+                                  >
+                                    {ev.eventName}
+                                  </Link>
                                 </TableCell>
                                 <TableCell className="text-right tabular-nums">
                                   ${Number(ev.totalCost).toFixed(2)}

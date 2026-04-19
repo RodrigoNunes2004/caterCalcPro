@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   Plus,
   Calendar,
@@ -180,6 +180,7 @@ interface EventPricingSummary {
 
 export default function EventsPage() {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [selectedEventType, setSelectedEventType] = useState<string>("");
   const [selectedPrepGuide, setSelectedPrepGuide] = useState<string>("buffet");
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
@@ -284,6 +285,15 @@ export default function EventsPage() {
       setLoading(false);
     }
   };
+
+  /** Open pricing breakdown when linked from Analytics (e.g. `/events?event=<id>`). */
+  useEffect(() => {
+    if (loading) return;
+    const eventId = searchParams.get("event");
+    if (!eventId) return;
+    if (!events.some((e) => e.id === eventId)) return;
+    setSelectedPricingEventId(eventId);
+  }, [loading, events, searchParams]);
 
   const recalculateEventPricing = async (eventId: string) => {
     try {
@@ -1108,7 +1118,14 @@ export default function EventsPage() {
       <Dialog
         open={Boolean(selectedPricingEventId)}
         onOpenChange={(open) => {
-          if (!open) setSelectedPricingEventId(null);
+          if (!open) {
+            setSelectedPricingEventId(null);
+            if (searchParams.has("event")) {
+              const next = new URLSearchParams(searchParams);
+              next.delete("event");
+              setSearchParams(next, { replace: true });
+            }
+          }
         }}
       >
         <DialogContent className="max-w-3xl">

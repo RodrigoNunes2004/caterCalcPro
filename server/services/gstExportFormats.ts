@@ -1,13 +1,14 @@
 import type PDFDocument from "pdfkit";
 import type { EventSnapshotsGstSummary, GstSummaryPayload } from "./gstReportingService.js";
 
+/** PDF-safe (Helvetica / WinAnsi); avoid arrows and typographic dashes. */
 function formatSnapshotPeriodLine(ev: EventSnapshotsGstSummary): string {
   if (ev.dateRange) {
     const y = new Date(ev.dateRange.start).getUTCFullYear();
     if (y < 1980) return "all time (snapshots)";
-    return `${ev.dateRange.start.slice(0, 10)} → ${ev.dateRange.end.slice(0, 10)}`;
+    return `${ev.dateRange.start.slice(0, 10)} to ${ev.dateRange.end.slice(0, 10)}`;
   }
-  if (ev.periodDays == null) return "—";
+  if (ev.periodDays == null) return "-";
   return `${ev.periodDays} day(s)`;
 }
 
@@ -117,7 +118,7 @@ export async function buildGstSummaryPdf(payload: GstSummaryPayload): Promise<Bu
       .fontSize(9)
       .fillColor("#444444")
       .text(
-        `Generated ${new Date().toISOString()} · ${payload.currency} · GST ${(payload.gstRate * 100).toFixed(0)}% · Target price: ${payload.eventSnapshots.assumeTargetPriceGstInclusive ? "GST-inclusive" : "GST-exclusive"} · Snapshots: ${formatSnapshotPeriodLine(payload.eventSnapshots)}`,
+        `Generated ${new Date().toISOString()} | ${payload.currency} | GST ${(payload.gstRate * 100).toFixed(0)}% | Target price: ${payload.eventSnapshots.assumeTargetPriceGstInclusive ? "GST-inclusive" : "GST-exclusive"} | Snapshots: ${formatSnapshotPeriodLine(payload.eventSnapshots)}`,
         { width: 500 }
       );
     doc.fillColor("#000000");
@@ -131,7 +132,7 @@ export async function buildGstSummaryPdf(payload: GstSummaryPayload): Promise<Bu
     doc.text(`Total incl. GST: ${payload.inventory.totalInclusive.toFixed(2)}`);
     doc.moveDown();
 
-    doc.fontSize(12).text("Event snapshots — totals", { underline: true });
+    doc.fontSize(12).text("Event snapshots - totals", { underline: true });
     doc.fontSize(10);
     const tt = payload.eventSnapshots.totals;
     doc.text(`Sum target price: ${tt.sumTargetPrice.toFixed(2)}`);
@@ -141,15 +142,15 @@ export async function buildGstSummaryPdf(payload: GstSummaryPayload): Promise<Bu
     doc.text(`Sum profit: ${tt.sumProfit.toFixed(2)}`);
     doc.moveDown();
 
-    doc.fontSize(12).text("Event snapshots — detail", { underline: true });
+    doc.fontSize(12).text("Event snapshots - detail", { underline: true });
     doc.fontSize(9);
     payload.eventSnapshots.rows.forEach((row, i) => {
       if (doc.y > 720) doc.addPage();
-      const snap = row.snapshotCreatedAt ? row.snapshotCreatedAt.slice(0, 10) : "—";
+      const snap = row.snapshotCreatedAt ? row.snapshotCreatedAt.slice(0, 10) : "-";
       doc.text(`${i + 1}. ${row.eventName}`, { width: 500 });
       doc.fontSize(8).fillColor("#333333");
       doc.text(
-        `   Snapshot ${snap} · Target ${row.targetPrice.toFixed(2)} · GST on target ${row.gstOnTarget.toFixed(2)} · Excl. ${row.targetExclusive.toFixed(2)} · Cost ${row.totalCost.toFixed(2)} · Profit ${row.profit.toFixed(2)}`,
+        `   Snapshot ${snap} | Target ${row.targetPrice.toFixed(2)} | GST on target ${row.gstOnTarget.toFixed(2)} | Excl. ${row.targetExclusive.toFixed(2)} | Cost ${row.totalCost.toFixed(2)} | Profit ${row.profit.toFixed(2)}`,
         { width: 500 }
       );
       doc.fillColor("#000000");
