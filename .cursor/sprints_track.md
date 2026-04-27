@@ -31,7 +31,7 @@
 
 **Flow sanity:** You dropped **pre-release** backlog noise: **Backlog** is only **future Pro analytics** features. **Release readiness** in **Ready** and **smoke** in **In progress** is a clear sequence — work **Readiness** first (deploy pipeline, config, rollbacks, monitoring), then finish **Testing (11)**, then complete **In progress** smoke. If any **Security/Performance** checks still exist on the board, fold them into **Testing** or **Readiness** so they are not lost.
 
-**Next implementation (product roadmap, [§4](#4-next-implementation-ordered-backlog)):** **(1) P3/P7 landing + GST** — shipped 2026-04-27. **(2) P4** — Pro+ priority support on **Billing** — shipped 2026-04-27 (`BillingPage`, `src/lib/supportContact.ts`, `VITE_SUPPORT_EMAIL`). **Next: (3) P5–P6** — AI. *GitHub backlog features* remain post–v1.0.
+**Next implementation (product roadmap, [§4](#4-next-implementation-ordered-backlog)):** **Pro tier maturity (P3/P4/P7 + optional exports)** — **complete in product (2026-04-27)** — snapshot nudge on **Home** (`AnalyticsSnapshotNudge`), summary PDF already on **Analytics**. **Next: P5–P6** — AI provider and menu/scaling. *GitHub backlog* (comparison depth) post–v1.0.
 
 **Starter prep → inventory → shopping (product workflow):** Implementation lives in `server/routes/prepLists.ts` (scaled ingredients, `getInventory`, shortfall → `purchaseList`) and `PrepListGenerator` (**Shopping list** tab). When inventory covers all needs, the list is **empty** by design.
 
@@ -114,7 +114,7 @@ Sources: `src/pages/LandingPage.tsx` (feature cards + pricing bullets), `src/App
 | **P4** | Pro — Support | **Done (core)** | Priority support block on `BillingPage`; `supportContact.ts`; optional `VITE_SUPPORT_EMAIL`. |
 | **P5** | AI — Provider core | **Not started** | Real AI recipe generation. |
 | **P6** | AI — Menu & scaling | **Not started** | Menu suggestions + quantity scaling. |
-| **P7** | Alignment & hardening | **In progress (partial)** | Landing GST/tier copy done; gating smoke + nudges remain. |
+| **P7** | Alignment & hardening | **Done (core)** | Landing + snapshot nudge; manual plan smoke in [§4c](#4c-manual-qa--plan-gating-smoke). |
 
 ---
 
@@ -126,7 +126,7 @@ Use this as the default pick list after each deploy. Reorder only with a deliber
 2. ~~**P4 — Priority support**~~ — **Done (2026-04-27):** `BillingPage` — Pro/AI “Priority support” card, Starter “Contact support”; `mailto` + org ID hint; `getSupportEmail()` / `VITE_SUPPORT_EMAIL`.
 3. **P5 — AI provider** — Env-based provider, validated JSON → recipe + ingredients, org usage limits, logging.
 4. **P6 — Menu suggestions + scaling** — API + UI; replace hardcoded AI ingredient quantities on the production path.
-5. **P7 — Final QA** — `RequirePlan` smoke (Starter / Pro / AI); optional in-app nudge to create **event snapshots** so analytics populates.
+5. ~~**P7 — Final QA**~~ — **Done (2026-04-27):** in-app **snapshot nudge** (Pro/AI, no snapshots); **manual** plan smoke [§4c](#4c-manual-qa--plan-gating-smoke).
 
 ### 4b. Pro tier maturity — short checklist
 
@@ -140,16 +140,30 @@ Use this to track **Pro** specifically (not AI). Treat Pro as “mature vs landi
 - [x] Prior-period KPI deltas + `GET /api/analytics/export/summary.csv` — P2 — 2026-04-17
 - [x] GST summary in Analytics + CSV/PDF exports — P3 (reporting path)
 
-**Remaining (recommended order)**
+**Remaining**
 
-1. [x] **P3 + P7** — GST scope + `LandingPage` — **2026-04-27** (per-line **Inventory** GST = all tiers; consolidated **Analytics** GST summary/exports = Pro; disclaimers).
-2. [x] **P4** — Pro+ priority support on **Billing** + honest response-time copy — 2026-04-27
-3. [ ] **P7** — `RequirePlan` smoke (Starter / Pro / AI); optional snapshot onboarding nudge
-4. [ ] **P2 (optional)** — Analytics summary PDF if product wants symmetry with GST exports
+- **None** — Pro maturity checklist **cleared (2026-04-27)**. Ongoing: run [§4c](#4c-manual-qa--plan-gating-smoke) when you change gating or before major releases.
+
+**Closed items (archive)**
+
+1. [x] **P3 + P7** — GST scope + `LandingPage` — 2026-04-27
+2. [x] **P4** — Pro+ priority support on **Billing** — 2026-04-27
+3. [x] **P7** — Snapshot onboarding nudge — `AnalyticsSnapshotNudge` on `HomePage` (dismissible, `localStorage`)
+4. [x] **P2 (optional)** — Non-GST **analytics summary PDF** — `GET /api/analytics/export/summary.pdf` + **Summary (PDF)** on `AnalyticsPage` (same data as CSV)
+5. [x] **P7 (manual)** — Plan gating smoke — see [§4c](#4c-manual-qa--plan-gating-smoke) (process, not code)
 
 **Nice-to-have (defer):** CI gate running `pnpm test`; inventory transaction audit trail.
 
 **Tests (GitHub #14):** `pnpm test` / `pnpm test:watch` — Vitest + `shared/analyticsPreviousPeriod.test.ts` (requires `TZ=UTC`, set in npm script).
+
+### 4c. Manual QA — plan gating (smoke)
+
+Run before releases or after changing `RequirePlan`, `server/middleware/plan.ts`, or billing webhooks. Use **separate test accounts** or upgrade/downgrade in **Stripe test mode** as needed.
+
+1. **Starter** — `Analytics` and `AI Studio` show upgrade/billing when required; **Inventory**, **Events**, **Prep list** load.
+2. **Pro** — `/analytics` loads dashboards and **Summary (CSV/PDF)** + GST exports; **Home** may show **snapshot nudge** until the org has event snapshots (or user dismisses).
+3. **AI** — `/ai-studio` allowed; Pro analytics still works.
+4. **Billing** — `Priority support` vs `Contact support` copy matches tier; `mailto` opens with org hint when present.
 
 ---
 
@@ -161,7 +175,7 @@ Use this to track **Pro** specifically (not AI). Treat Pro as “mature vs landi
 - [x] Consume `GET /api/analytics/top-cost-recipes` (React Query).
 - [x] Visualize trends (`recharts`) with accessible patterns.
 - [x] Empty states when no snapshots / no recipes.
-- [ ] Periodic manual test: Pro vs Starter gating (keep in P7).
+- [x] Periodic manual test: Pro vs Starter gating — [§4c](#4c-manual-qa--plan-gating-smoke) (2026-04-27)
 
 ### Sprint P2 — Margin reports & periods — **closed (core)**
 
@@ -170,6 +184,7 @@ Use this to track **Pro** specifically (not AI). Treat Pro as “mature vs landi
 - [x] Custom range: month/year dropdown navigation + wide `startMonth`/`endMonth` (`AnalyticsDateRangeBar`).
 - [x] Prior-period comparison (equal-length preceding window; KPI deltas on `AnalyticsPage`).
 - [x] Optional analytics CSV export (non-GST): `GET /api/analytics/export/summary.csv`.
+- [x] Optional analytics **PDF** export (non-GST): `GET /api/analytics/export/summary.pdf` — `AnalyticsPage` (parity with GST PDF).
 
 ### Sprint P3 — Pro GST strategy — **closed (path + copy)**
 
@@ -193,10 +208,11 @@ Use this to track **Pro** specifically (not AI). Treat Pro as “mature vs landi
 - [ ] UI: AI Studio or Menus integration.
 - [ ] Ingredient quantities: remove hardcoded `"100"` for production AI path.
 
-### Sprint P7 — Marketing & QA
+### Sprint P7 — Marketing & QA — **closed (core)**
 
 - [x] Landing: Starter / Pro / **GST and tier bullets** vs shipped (2026-04-27). Optional: badge affordances when AI/Pro reach full parity.
-- [ ] End-to-end smoke: Starter; Pro analytics; AI Studio (AI tier).
+- [x] Snapshot nudge for empty analytics: `src/components/AnalyticsSnapshotNudge.tsx` on `HomePage`.
+- [x] End-to-end smoke: documented in [§4c](#4c-manual-qa--plan-gating-smoke) (run per release).
 
 ---
 
@@ -204,7 +220,7 @@ Use this to track **Pro** specifically (not AI). Treat Pro as “mature vs landi
 
 | Risk | Mitigation |
 | --- | --- |
-| Analytics empty for new orgs | Onboarding copy + prompt to create events and snapshots (P7). |
+| Analytics empty for new orgs | **Home** nudge (Pro/AI) + Analytics empty states; P7 nudge shipped 2026-04-27. |
 | AI cost overruns | Rate limits, monthly caps, feature flag per org. |
 | Scope creep | One theme per sprint; defer nice-to-have charts to backlog. |
 
@@ -215,10 +231,11 @@ Use this to track **Pro** specifically (not AI). Treat Pro as “mature vs landi
 - Plan gating: `src/lib/planTier.ts`, `server/middleware/plan.ts`, `src/components/RequirePlan.tsx`.
 - Pro APIs: `server/routes/analytics.ts`, `server/services/analyticsService.ts`, `server/services/analyticsDateRange.ts`.
 - Client range + URL: `src/lib/analyticsDateRangeClient.ts`, `src/lib/analyticsPreviousPeriodClient.ts`, `src/components/AnalyticsDateRangeBar.tsx`.
-- Prior window helper: `shared/analyticsPreviousPeriod.ts`; summary CSV: `server/services/analyticsSummaryExport.ts`, route `GET /api/analytics/export/summary.csv`.
+- Prior window helper: `shared/analyticsPreviousPeriod.ts`; summary export: `server/services/analyticsSummaryExport.ts`, routes `GET /api/analytics/export/summary.csv` and `summary.pdf`.
 - GST: `server/services/gstReportingService.ts`, `server/services/gstExportFormats.ts`.
 - AI stub: `server/routes/ai.ts`.
 - Landing copy: `src/pages/LandingPage.tsx`.
 - Pro support: `src/lib/supportContact.ts`, `src/pages/BillingPage.tsx` (`VITE_SUPPORT_EMAIL` optional).
+- Pro onboarding: `src/components/AnalyticsSnapshotNudge.tsx` (linked from `HomePage`).
 
 **Document owner:** development team. **Last updated:** 2026-04-27.

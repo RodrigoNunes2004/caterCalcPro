@@ -24,6 +24,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import Navigation from "@/components/Navigator";
+import { AnalyticsSnapshotNudge } from "@/components/AnalyticsSnapshotNudge";
 import { useRecipes, useDeleteRecipe } from "@/hooks/useRecipes";
 import { usePlanAccess } from "@/hooks/usePlanAccess";
 import { useQuery } from "@tanstack/react-query";
@@ -159,6 +160,10 @@ export default function HomePage() {
             Intelligent recipe scaling, cost breakdown, and ingredient
             management for professional caterers.
           </p>
+        </div>
+
+        <div className="mb-6">
+          <AnalyticsSnapshotNudge />
         </div>
 
         {/* Quick Actions */}
