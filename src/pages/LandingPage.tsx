@@ -50,9 +50,9 @@ const features: Feature[] = [
     icon: <Calculator className="h-6 w-6" />,
     title: "Starter — Core operations",
     description:
-      "Day-to-day catering workflows: recipes, menus, events, prep lists, shopping lists, inventory, and costing.",
+      "Day-to-day catering workflows: recipes, menus, events, prep lists, shopping lists, inventory (per-line GST options for stock pricing), and costing.",
     benefit:
-      "Best for teams that need reliable scaling, costing, and kitchen workflows without advanced analytics.",
+      "Best for teams that need reliable scaling, costing, and kitchen workflows without the Pro analytics suite.",
     availability: "Available now",
     availabilityClassName: "bg-green-100 text-green-800",
   },
@@ -60,9 +60,9 @@ const features: Feature[] = [
     icon: <DollarSign className="h-6 w-6" />,
     title: "Pro — Advanced business insights",
     description:
-      "Analytics dashboard with profit and cost trends, snapshot-based event performance, and inventory movement—built from your historical data.",
+      "Pro-only Analytics: profit and cost trends, prior-period comparison, snapshot-based event performance, and a consolidated business GST view—built from your data.",
     benefit:
-      "Margin calculations from event snapshots, trend charts, top-cost views, and GST summaries (inventory + snapshot targets) on Analytics—with CSV and PDF export. Forecasting remains on the roadmap—not tax advice.",
+      "Margins and trends from snapshots, top-cost views, and an NZ business GST summary in Analytics (uses inventory line GST settings plus event data) with CSV and PDF export. This is a management report—not IRD filing or personal tax advice. Forecasting is on the roadmap.",
     availability: "Subscribe",
     availabilityClassName: "bg-emerald-100 text-emerald-900",
   },
@@ -591,6 +591,10 @@ export default function LandingPage() {
                   <CheckCircle className="h-4 w-4 text-green-500" />
                   <span className="text-sm">Recipe, menu, and event management</span>
                 </div>
+                <div className="flex items-center space-x-2">
+                  <CheckCircle className="h-4 w-4 text-green-500" />
+                  <span className="text-sm">Inventory per-line GST for stock pricing (NZ 15%)</span>
+                </div>
               </CardContent>
             </Card>
 
@@ -621,7 +625,7 @@ export default function LandingPage() {
                 </div>
                 <div className="flex items-start space-x-2">
                   <CheckCircle className="h-4 w-4 text-orange-600 shrink-0 mt-0.5" />
-                  <span className="text-sm">GST reporting with CSV & PDF export</span>
+                  <span className="text-sm">NZ business GST summary in Analytics (CSV & PDF, Pro only)</span>
                 </div>
                 <div className="flex items-start space-x-2">
                   <Shield className="h-4 w-4 text-orange-600 shrink-0 mt-0.5" />

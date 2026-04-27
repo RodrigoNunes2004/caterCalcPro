@@ -265,15 +265,28 @@ export default function PrepListGenerator({ onSave }: PrepListGeneratorProps) {
 
       if (response.ok) {
         const data = await response.json();
-        setPrepList(data);
+        const normalized = {
+          ...data,
+          prepTasks: Array.isArray(data.prepTasks) ? data.prepTasks : [],
+          purchaseList: Array.isArray(data.purchaseList) ? data.purchaseList : [],
+        };
+        setPrepList(normalized);
         setSelectedSavedListId(data.id || "");
         await loadSavedLists();
-        setActiveTab("prep-list");
-        const prepCount = data.prepTasks?.length || 0;
-        const purchaseCount = data.purchaseList?.length || 0;
+        const prepCount = normalized.prepTasks.length;
+        const purchaseCount = normalized.purchaseList.length;
+        // Shopping list is on its own tab; open it when there is something to buy, else stay on prep and explain.
+        if (purchaseCount > 0) {
+          setActiveTab("purchase-list");
+        } else {
+          setActiveTab("prep-list");
+        }
         toast({
-          title: "Prep List & Shopping List Generated",
-          description: `${data.eventName}: ${prepCount} prep tasks, ${purchaseCount} items to purchase. Check both tabs.`,
+          title: "Prep list and shopping list ready",
+          description:
+            purchaseCount > 0
+              ? `${data.eventName}: ${prepCount} prep tasks. ${purchaseCount} item(s) to buy—opened the Shopping list tab.`
+              : `${data.eventName}: ${prepCount} prep tasks. Inventory already covers what you need (0 items to buy). Open the Shopping list tab to confirm.`,
         });
       } else {
         const errData = await response.json().catch(() => ({}));
@@ -445,9 +458,23 @@ export default function PrepListGenerator({ onSave }: PrepListGeneratorProps) {
       });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data?.error || "Failed to load prep list");
-      setPrepList(data);
-      setActiveTab("prep-list");
-      toast({ title: "Prep list loaded", description: `Loaded ${data.eventName}` });
+      const normalized = {
+        ...data,
+        prepTasks: Array.isArray(data.prepTasks) ? data.prepTasks : [],
+        purchaseList: Array.isArray(data.purchaseList) ? data.purchaseList : [],
+      };
+      setPrepList(normalized);
+      setActiveTab(
+        normalized.purchaseList.length > 0 ? "purchase-list" : "prep-list"
+      );
+      toast({
+        title: "Prep list loaded",
+        description: `Loaded ${data.eventName}. ${
+          normalized.purchaseList.length
+            ? "Opened Shopping list (items to buy)."
+            : "No items to buy; inventory may cover the event."
+        }`,
+      });
     } catch (error: any) {
       toast({
         title: "Load failed",
@@ -588,6 +615,7 @@ export default function PrepListGenerator({ onSave }: PrepListGeneratorProps) {
 
   const exportPrepList = () => {
     if (!prepList) return;
+    const toBuy = prepList.purchaseList ?? [];
 
     const content = `# Prep List - ${prepList.eventName}
 Generated: ${new Date(prepList.generatedAt).toLocaleString()}
@@ -603,8 +631,8 @@ ${prepList.prepTasks
   )
   .join("\n")}
 
-## Purchase List
-${prepList.purchaseList
+## Shopping list (vs inventory)
+${toBuy
   .map((item: any) => `• ${item.ingredient} (${item.shortfall} ${item.unit})`)
   .join("\n")}
 `;
@@ -622,8 +650,9 @@ ${prepList.purchaseList
 
   const exportPurchaseList = () => {
     if (!prepList) return;
+    const items = prepList.purchaseList ?? [];
 
-    const totalCost = prepList.purchaseList.reduce(
+    const totalCost = items.reduce(
       (total: number, item: any) => {
         const costPerUnit = 2.5; // Mock cost per unit
         return total + item.shortfall * costPerUnit;
@@ -634,11 +663,11 @@ ${prepList.purchaseList
     const content = `# Shopping List - ${prepList.eventName}
 Generated: ${new Date(prepList.generatedAt).toLocaleString()}
 Guest Count: ${prepList.guestCount}
-Total Items: ${prepList.purchaseList.length}
+Total Items: ${items.length}
 Estimated Total Cost: $${totalCost.toFixed(2)}
 
 ## Items to Purchase
-${prepList.purchaseList
+${items
   .map((item: any) => {
     const itemCost = item.shortfall * 2.5;
     return `• ${item.ingredient}
@@ -770,11 +799,12 @@ ${prepList.purchaseList
 
   const printPurchaseList = () => {
     if (!prepList) return;
+    const items = prepList.purchaseList ?? [];
 
     const printWindow = window.open("", "_blank");
     if (!printWindow) return;
 
-    const totalCost = prepList.purchaseList.reduce(
+    const totalCost = items.reduce(
       (total: number, item: any) => {
         const costPerUnit = 2.5; // Mock cost per unit
         return total + item.shortfall * costPerUnit;
@@ -819,14 +849,14 @@ ${prepList.purchaseList
             <p><strong>Menus:</strong> ${(prepList.menus || [])
               .map((m: any) => m.name)
               .join(", ")}</p>
-            <p><strong>Total Items:</strong> ${prepList.purchaseList.length}</p>
+            <p><strong>Total Items:</strong> ${items.length}</p>
           </div>
 
           <div class="total-cost">
             <h2>Total Estimated Cost: $${totalCost.toFixed(2)}</h2>
           </div>
 
-          ${prepList.purchaseList
+          ${items
             .map((item: any) => {
               const itemCost = item.shortfall * 2.5;
               return `
@@ -923,8 +953,10 @@ ${prepList.purchaseList
             Prep List Generator
           </CardTitle>
           <CardDescription>
-            Generate comprehensive prep lists for your catering events with
-            automatic scaling and inventory checking
+            Prep tasks scale from your menus, then the shopping list uses{" "}
+            <strong>Inventory</strong> stock to show what you still need to
+            buy. After generating, the <strong>Shopping list</strong> tab opens
+            when there are items to purchase.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -961,10 +993,10 @@ ${prepList.purchaseList
                 className="flex items-center gap-2 rounded-md px-3 py-1 text-sm font-medium transition-all"
               >
                 <ShoppingCart className="h-4 w-4" />
-                Purchase List
-                {prepList?.purchaseList?.length != null && (
+                Shopping list
+                {prepList?.purchaseList != null && (
                   <Badge variant="secondary" className="ml-1 text-xs">
-                    {prepList.purchaseList.length}
+                    {(prepList.purchaseList ?? []).length}
                   </Badge>
                 )}
               </TabsTrigger>
@@ -1510,7 +1542,7 @@ ${prepList.purchaseList
               </div>
             </TabsContent>
 
-            {/* Purchase List Tab */}
+            {/* Shopping list (from prep + inventory shortfall) */}
             <TabsContent value="purchase-list" className="space-y-6 mt-6">
               <div
                 className="min-h-screen p-6 -m-6"
@@ -1520,16 +1552,17 @@ ${prepList.purchaseList
                   <div className="space-y-6">
                     <div className="flex items-center justify-between">
                       <div>
-                        <h3 className="text-lg font-semibold">Shopping List</h3>
+                        <h3 className="text-lg font-semibold">Shopping list</h3>
                         <p className="text-sm text-gray-600">
-                          {prepList.purchaseList.length} items to purchase
+                          From prep requirements vs inventory:{" "}
+                          {(prepList.purchaseList ?? []).length} item(s) to buy
                         </p>
                       </div>
                       <div className="flex items-center space-x-4">
                         <div className="text-right">
                           <div className="text-2xl font-bold">
                             $
-                            {prepList.purchaseList
+                            {(prepList.purchaseList ?? [])
                               .reduce((total: number, item: any) => {
                                 const costPerUnit = 2.5; // Mock cost per unit
                                 return total + item.shortfall * costPerUnit;
@@ -1674,7 +1707,24 @@ ${prepList.purchaseList
                         </CardContent>
                       </Card>
 
-                      {prepList.purchaseList.map((item: any, index: number) => (
+                      {(prepList.purchaseList ?? []).length === 0 && (
+                        <Card className="border-dashed">
+                          <CardContent className="py-8 text-center text-muted-foreground">
+                            <p className="font-medium text-foreground">
+                              Nothing to buy for this list
+                            </p>
+                            <p className="text-sm mt-2 max-w-md mx-auto">
+                              Quantities are compared to your{" "}
+                              <strong>Inventory</strong> by ingredient name. If
+                              your stock covers everything (or names don’t match
+                              the recipe), the shopping list is empty. Add
+                              missing rows in Inventory or add lines below.
+                            </p>
+                          </CardContent>
+                        </Card>
+                      )}
+
+                      {(prepList.purchaseList ?? []).map((item: any, index: number) => (
                         <Card key={index}>
                           <CardContent className="p-4">
                             <div className="flex items-center justify-between">
@@ -1731,11 +1781,12 @@ ${prepList.purchaseList
                   <div className="text-center py-8">
                     <ShoppingCart className="h-12 w-12 text-gray-400 mx-auto mb-4" />
                     <h3 className="text-lg font-semibold mb-2">
-                      No Purchase List Generated
+                      No shopping list yet
                     </h3>
                     <p className="text-gray-600">
-                      Go to the Setup tab to generate a purchase list for your
-                      event.
+                      Go to the Setup tab, pick an event and menus, then
+                      generate. The shopping list is built from prep needs vs
+                      inventory.
                     </p>
                   </div>
                 )}
