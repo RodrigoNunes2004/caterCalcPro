@@ -35,6 +35,7 @@ import {
 import { useAuth } from "@/contexts/AuthContext";
 import { usePlanAccess } from "@/hooks/usePlanAccess";
 import PlanBadge from "@/components/PlanBadge";
+import { getSupportEmail } from "@/lib/supportContact";
 
 interface Feature {
   icon: React.ReactNode;
@@ -762,7 +763,7 @@ export default function LandingPage() {
           </div>
 
           <p className="text-sm text-gray-400 mt-6">
-            Questions? Email us at support@gastrogrid.com
+            Questions? Email us at {getSupportEmail()}
           </p>
         </div>
       </section>

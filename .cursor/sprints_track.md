@@ -31,7 +31,7 @@
 
 **Flow sanity:** You dropped **pre-release** backlog noise: **Backlog** is only **future Pro analytics** features. **Release readiness** in **Ready** and **smoke** in **In progress** is a clear sequence — work **Readiness** first (deploy pipeline, config, rollbacks, monitoring), then finish **Testing (11)**, then complete **In progress** smoke. If any **Security/Performance** checks still exist on the board, fold them into **Testing** or **Readiness** so they are not lost.
 
-**Next implementation (product roadmap, [§4](#4-next-implementation-ordered-backlog)):** **(1) P3/P7 landing + GST** — **shipped in copy (2026-04-27).** **Next: (2) P4** — Pro support contact on Billing/Help; **(3) P5–P6** — AI. *GitHub backlog features* (event-to-event, % on cards, trend viz) remain **Pro analytics depth** post–v1.0.
+**Next implementation (product roadmap, [§4](#4-next-implementation-ordered-backlog)):** **(1) P3/P7 landing + GST** — shipped 2026-04-27. **(2) P4** — Pro+ priority support on **Billing** — shipped 2026-04-27 (`BillingPage`, `src/lib/supportContact.ts`, `VITE_SUPPORT_EMAIL`). **Next: (3) P5–P6** — AI. *GitHub backlog features* remain post–v1.0.
 
 **Starter prep → inventory → shopping (product workflow):** Implementation lives in `server/routes/prepLists.ts` (scaled ingredients, `getInventory`, shortfall → `purchaseList`) and `PrepListGenerator` (**Shopping list** tab). When inventory covers all needs, the list is **empty** by design.
 
@@ -75,9 +75,9 @@ Sources: `src/pages/LandingPage.tsx` (feature cards + pricing bullets), `src/App
 | Real-time cost analytics dashboard | **Implemented (core)** | `AnalyticsPage`: KPIs + cost/profit trend chart + top events + recipes; Pro-gated routes. “Real-time” = snapshot-derived when users create snapshots (not live WebSockets). |
 | Margin reports | **Partial** | Margin visible via KPIs + trend; **prior-period KPI deltas** + **summary CSV** shipped; still no dedicated PDF “margin report” or chart-period overlay beyond KPI compare. |
 | GST: consolidated business view (Pro) | **Implemented (Pro)** | **Analytics** `gst/summary` + CSV/PDF (`requirePlan("pro")`). **Landing (2026-04-27)** separates this from per-line **Inventory** GST (all tiers). |
-| Priority email support | **Not in product** | Operational — see P4. |
+| Priority email support | **In product (core)** | **Billing** page: Pro/AI “Priority support”, Starter “Contact support”; email + expectations — P4. |
 
-**Verdict:** Pro **analytics + GST summary path** matches landing after the P3/P7 copy pass; **margin “report” product** and **support** (P4) remain.
+**Verdict:** Pro **analytics + GST summary path** matches landing after the P3/P7 copy pass; **priority support** on Billing (P4) shipped. **margin “report”** as a separate deliverable still optional.
 
 ---
 
@@ -98,7 +98,7 @@ Sources: `src/pages/LandingPage.tsx` (feature cards + pricing bullets), `src/App
 
 1. **Pro — Margin reports (P2 polish):** UI copy on snapshot prerequisites; optional **analytics summary PDF** if product wants parity with GST export format.
 2. **Pro — GST vs marketing (P3/P7):** **Addressed in copy (2026-04-27):** `LandingPage` distinguishes per-line **Inventory** GST (Starter+) vs **Pro Analytics** GST summary/exports; not IRD/tax advice.
-3. **Pro — Support (P4):** Priority support contact path (billing/help), honest expectations.
+3. **Pro — Support (P4):** **Addressed in product (2026-04-27):** `BillingPage` priority / contact support + `supportContact.ts`.
 4. **AI — Provider + features (P5–P6):** Real LLM, menu suggestions, ingredient scaling, limits.
 5. **Marketing & QA (P7):** **Landing tier bullets (partial):** GST scope aligned; remaining: badge polish, `RequirePlan` smoke, optional snapshot onboarding nudge.
 
@@ -111,7 +111,7 @@ Sources: `src/pages/LandingPage.tsx` (feature cards + pricing bullets), `src/App
 | **P1** | Pro analytics — UI parity | **Done (core)** | Dashboard: trends, tables, empty states — shipped. |
 | **P2** | Pro — Margin & periods | **Done (core)** | Unified dates + custom picker + **prior-period KPI compare** + **summary CSV export** shipped; optional PDF / richer margin report still backlog if needed. |
 | **P3** | Pro — GST / financial | **Done (copy + product path)** | GST summary + exports (Pro); **landing** aligned 2026-04-27 (Inventory GST vs Pro Analytics report). |
-| **P4** | Pro — Support | **Not started** | Pro+ support contact; optional Stripe metadata. |
+| **P4** | Pro — Support | **Done (core)** | Priority support block on `BillingPage`; `supportContact.ts`; optional `VITE_SUPPORT_EMAIL`. |
 | **P5** | AI — Provider core | **Not started** | Real AI recipe generation. |
 | **P6** | AI — Menu & scaling | **Not started** | Menu suggestions + quantity scaling. |
 | **P7** | Alignment & hardening | **In progress (partial)** | Landing GST/tier copy done; gating smoke + nudges remain. |
@@ -123,7 +123,7 @@ Sources: `src/pages/LandingPage.tsx` (feature cards + pricing bullets), `src/App
 Use this as the default pick list after each deploy. Reorder only with a deliberate scope change.
 
 1. ~~**P3 / P7 — Landing + GST messaging**~~ — **Done (2026-04-27):** `LandingPage.tsx` — Starter/Pro GST scope, Pro Analytics vs Inventory, non-advice disclaimer.
-2. **P4 — Priority support** — Mailto or form for Pro+ on Billing or Help; short SLA text; no fake automation.
+2. ~~**P4 — Priority support**~~ — **Done (2026-04-27):** `BillingPage` — Pro/AI “Priority support” card, Starter “Contact support”; `mailto` + org ID hint; `getSupportEmail()` / `VITE_SUPPORT_EMAIL`.
 3. **P5 — AI provider** — Env-based provider, validated JSON → recipe + ingredients, org usage limits, logging.
 4. **P6 — Menu suggestions + scaling** — API + UI; replace hardcoded AI ingredient quantities on the production path.
 5. **P7 — Final QA** — `RequirePlan` smoke (Starter / Pro / AI); optional in-app nudge to create **event snapshots** so analytics populates.
@@ -143,7 +143,7 @@ Use this to track **Pro** specifically (not AI). Treat Pro as “mature vs landi
 **Remaining (recommended order)**
 
 1. [x] **P3 + P7** — GST scope + `LandingPage` — **2026-04-27** (per-line **Inventory** GST = all tiers; consolidated **Analytics** GST summary/exports = Pro; disclaimers).
-2. [ ] **P4** — Pro+ priority support contact (Billing/Help) + honest response-time copy
+2. [x] **P4** — Pro+ priority support on **Billing** + honest response-time copy — 2026-04-27
 3. [ ] **P7** — `RequirePlan` smoke (Starter / Pro / AI); optional snapshot onboarding nudge
 4. [ ] **P2 (optional)** — Analytics summary PDF if product wants symmetry with GST exports
 
@@ -176,10 +176,10 @@ Use this to track **Pro** specifically (not AI). Treat Pro as “mature vs landi
 - [x] Pro GST summary + exports (CSV/PDF) behind Pro routes.
 - [x] Wording: **per-line inventory GST (Starter+)** vs **Pro Analytics** consolidated GST + exports; `LandingPage.tsx` updated 2026-04-27.
 
-### Sprint P4 — Priority support
+### Sprint P4 — Priority support — **closed (core)**
 
-- [ ] Support email or form for Pro+; visible on Billing or Help.
-- [ ] Document response expectations internally.
+- [x] Support email for Pro+ and Starter; **Billing** page (`Priority support` / `Contact support`).
+- [x] Response expectations in UI (1–2 business days NZ, weekdays; not 24/7) — not tax/legal advice.
 
 ### Sprint P5 — AI provider
 
@@ -219,5 +219,6 @@ Use this to track **Pro** specifically (not AI). Treat Pro as “mature vs landi
 - GST: `server/services/gstReportingService.ts`, `server/services/gstExportFormats.ts`.
 - AI stub: `server/routes/ai.ts`.
 - Landing copy: `src/pages/LandingPage.tsx`.
+- Pro support: `src/lib/supportContact.ts`, `src/pages/BillingPage.tsx` (`VITE_SUPPORT_EMAIL` optional).
 
 **Document owner:** development team. **Last updated:** 2026-04-27.

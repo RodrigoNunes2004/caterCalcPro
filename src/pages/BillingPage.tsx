@@ -1,11 +1,12 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { CreditCard, RefreshCcw, ArrowLeft, CheckCircle2, AlertTriangle } from "lucide-react";
+import { CreditCard, RefreshCcw, ArrowLeft, CheckCircle2, AlertTriangle, Mail } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/contexts/AuthContext";
 import { normalizePlanTier, hasPlanAccess, type PlanTier } from "@/lib/planTier";
+import { buildSupportMailto, getSupportEmail } from "@/lib/supportContact";
 import PlanBadge from "@/components/PlanBadge";
 
 type BillingStatus = {
@@ -241,6 +242,18 @@ export default function BillingPage() {
   const isLikelyActive =
     status?.subscriptionStatus === "active" || status?.subscriptionStatus === "trialing";
 
+  const isProOrAi = hasPlanAccess(currentPlanTier, "pro");
+
+  const supportMailto = useMemo(() => {
+    const orgLine = status?.organizationId
+      ? `Organization ID: ${status.organizationId}\n\n`
+      : "";
+    return buildSupportMailto({
+      subject: "Gastro Grid support",
+      bodyPrefix: orgLine + "Please describe your question or issue:\n",
+    });
+  }, [status?.organizationId]);
+
   return (
     <div className="min-h-screen bg-background p-4 sm:p-8">
       <div className="max-w-3xl mx-auto space-y-4">
@@ -381,6 +394,48 @@ export default function BillingPage() {
                 Go to Home
               </Button>
             </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Mail className="h-5 w-5 text-orange-600" />
+              {isProOrAi ? "Priority support" : "Contact support"}
+            </CardTitle>
+            <CardDescription>
+              {isProOrAi
+                ? "Pro and AI plans include priority email for product and billing help (not a ticket portal or in-app chat)."
+                : "For billing and account questions, email us. Upgrade to Pro or AI for priority handling."}
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3 text-sm text-muted-foreground">
+            {isProOrAi ? (
+              <p>
+                We aim to respond within <strong>1–2 business days</strong> (New Zealand
+                time, weekdays). Email is the channel—include steps to reproduce, links, or
+                screenshots when relevant. This is <strong>not</strong> tax or legal advice.
+              </p>
+            ) : (
+              <p>
+                We typically reply within a <strong>few business days</strong>. For the
+                fastest help with analytics and Pro features, consider upgrading to{" "}
+                <strong>Pro</strong> or <strong>AI</strong> on this page.
+              </p>
+            )}
+            <p>
+              <a
+                className="font-medium text-orange-600 hover:underline"
+                href={supportMailto}
+              >
+                {getSupportEmail()}
+              </a>
+            </p>
+            {!loading && status?.organizationId && (
+              <p className="text-xs text-muted-foreground/90">
+                Your message can include organization ID <code className="rounded bg-muted px-1 py-0.5 text-xs">{status.organizationId}</code> for faster lookup.
+              </p>
+            )}
           </CardContent>
         </Card>
       </div>
